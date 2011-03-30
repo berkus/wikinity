@@ -11,8 +11,6 @@ import search
 
 
 def main():
-#    reload(sys)
-#    sys.setdefaultencoding( "latin-1" )
     search.init()
     gui.init()
 

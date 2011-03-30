@@ -61,5 +61,6 @@ class MessageHandler(threading.Thread):
                     if results >= conf.MaxResults:
                         break
                 if not results:
+                    common.log("No pages found for '%s'.", term)
                     gui.message("no results")
             gui.message("status", "Search for '%s' complete, %s result(s)." % (term, results))

@@ -45,13 +45,13 @@ class MainWindow(wx.Frame):
 
 
     def __init__(self):
-        wx.Frame.__init__(self, parent=None, id=-1, title=self.title, size=(800, 800))
+        wx.Frame.__init__(self, parent=None, id=-1, title=self.title, size=(800, 750))
 
         self.panel = wx.Panel(self, -1)
 
         search_sizer = wx.FlexGridSizer(rows=1, cols=4, vgap=10, hgap=25)
         heading = wx.StaticText(parent=self.panel, id=-1, label="Enter search term:")
-        self.search_box = wx.TextCtrl(parent=self.panel, id=-1, size=(50,-1),  style=wx.TE_PROCESS_ENTER)
+        self.search_box = wx.TextCtrl(parent=self.panel, id=-1, size=(120,-1),  style=wx.TE_PROCESS_ENTER)
         self.Bind(wx.EVT_TEXT_ENTER, self.on_search_box, self.search_box)
         search_sizer.Add(heading)
         search_sizer.Add(self.search_box)
@@ -89,7 +89,7 @@ class MainWindow(wx.Frame):
     def create_console_page(self):
         self.console_page = wx.Panel(self.notebook, -1)
         self.notebook.AddPage(self.console_page, 'Console')
-        self.console = wx.py.shell.Shell(parent=self.console_page, id=-1, introText=wx.py.version.VERSION, size=(740, 600))
+        self.console = wx.py.shell.Shell(parent=self.console_page, id=-1, introText=wx.py.version.VERSION, size=(780, 600))
 
 
     def create_log_page(self):
