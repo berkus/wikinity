@@ -3,7 +3,7 @@ Application GUI functionality.
 
 @author     Erki Suurjaak <erki@lap.ee>
 @created    29.03.2011
-@modified   30.03.2011
+@modified   31.03.2011
 """
 import Queue
 import threading
@@ -47,6 +47,9 @@ class MainWindow(wx.Frame):
     def __init__(self):
         wx.Frame.__init__(self, parent=None, id=-1, title=self.title, size=(800, 750))
 
+        self.current_pages = {}
+        self.new_search_ongoing = False
+
         self.panel = wx.Panel(self, -1)
 
         search_sizer = wx.FlexGridSizer(rows=1, cols=4, vgap=10, hgap=25)
@@ -61,7 +64,7 @@ class MainWindow(wx.Frame):
         self.Bind(wx.EVT_BUTTON, self.on_search_button, self.search_button)
         search_sizer.Add(self.search_button)
 
-        # @todo start using this one
+        # @todo start using this one?
         #self.search_ctrl = wx.SearchCtrl(parent=self.panel, id=-1)
         #search_sizer.Add(self.search_ctrl)
 
@@ -115,9 +118,6 @@ class MainWindow(wx.Frame):
         box = wx.BoxSizer(wx.VERTICAL)
         box.Add(self.html, proportion=1, flag=wx.ALL | wx.EXPAND, border=5)
         self.results_page.SetSizer(box)
-        #self.results_sizer = wx.FlexGridSizer(rows=15, cols=2, vgap=10, hgap=25)
-        #self.results_box.Add(self.results_sizer, proportion=1, flag=wx.ALL | wx.EXPAND, border=5)
-        #self.results_page.SetSizer(self.results_box)
 
 
     def on_exit(self, event):
@@ -132,6 +132,7 @@ class MainWindow(wx.Frame):
         term = self.search_box.Value.strip()
         if term:
             message("status", "Searching for '%s'.." % term)
+            self.new_search_ongoing = True
             search.search(term)
 
 
@@ -140,19 +141,41 @@ class MainWindow(wx.Frame):
 
 
     def add_result(self, result_number, page):
-        if 1 == result_number:
-            self.current_html = ""
+        if self.new_search_ongoing:
+            self.current_html = "" # @todo remove debugging var
+            self.current_pages.clear()
             self.html.SetPage("")
+            self.new_search_ongoing = False
         self.last_page = page
+        entry = {"number": result_number, "title": "", "snippet": "", "categories": "", "object": None}
         if type(page) is dict:
-            title_str = page["title"]
-            snippet_str = page["snippet"]
+            entry.update(page)
         else:
-            title_str = page.page_title
-            snippet_str = page.get_expanded()[:580]
-        html_slice = conf.HtmlEntryTemplate % (result_number, title_str, snippet_str)
-        self.html.AppendToPage(html_slice)
-        self.current_html += "\n\n" + html_slice
+            entry["title"] = page.page_title
+            entry["object"] = page
+        if entry["title"] in self.current_pages:
+            self.current_pages[entry["title"]]["object"] = entry["object"]
+        else:
+            self.current_pages[entry["title"]] = entry
+        self.update_results()
+
+
+    def update_results(self):
+        """Update the whole table, adding in newly arrived page data"""
+        self.current_html = conf.HtmlHeader
+        ordered = sorted(self.current_pages.values(), key=lambda entry: entry["number"])
+        for entry in ordered:
+            page = entry["object"]
+            if page:
+                if page.categories_initialized and not entry["categories"]:
+                    entry["categories"] = reduce(lambda str, cat: str + " | " + cat.page_title if str else cat.page_title, page.categories_initialized, "")
+                if page.expanded and not entry["snippet"]:
+                    entry["snippet"] = page.expanded[:300].replace("<", "&lt;") # @todo horrible, I know
+            html_slice = conf.HtmlEntryTemplate % (entry["number"], entry["title"], entry["snippet"], entry["categories"])
+            self.current_html += "\n\n" + html_slice
+        self.current_html += "\n\n" + conf.HtmlFooter
+        self.html.SetPage(self.current_html)
+            
 
 
     def no_results(self):
