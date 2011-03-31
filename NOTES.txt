@@ -1,9 +1,14 @@
 TODO list:
-- examine wiki API and implement the most basic - getting an article, with
-one image (if any), with a small initial snippet, with categories, and
-"See also" links.
+- get external links section. this seems to be doable only by getting
+  section titled "See also" and its links
+http://en.wikipedia.org/w/api.php?action=parse&page=History&format=jsonfm&prop=sections
+and
+http://en.wikipedia.org/w/api.php?action=parse&page=foobar&format=jsonfm&disablepp=1&section=4&pst=1&prop=links
+- make something really simple for showing connections,
+  even maybe creating a bitmap with texts and thumbnail images
+  and lines between them :)
 -
-- phase out using mwclient, write a smaller simpler module on its basis.
+- write a better wiki module
 
 --------------------------------------------------------------------------------
 Notes:

@@ -3,7 +3,7 @@ Application GUI functionality.
 
 @author     Erki Suurjaak <erki@lap.ee>
 @created    29.03.2011
-@modified   31.03.2011
+@modified   01.04.2011
 """
 import Queue
 import threading
@@ -52,7 +52,7 @@ class MainWindow(wx.Frame):
 
         self.panel = wx.Panel(self, -1)
 
-        search_sizer = wx.FlexGridSizer(rows=1, cols=4, vgap=10, hgap=25)
+        search_sizer = wx.FlexGridSizer(rows=1, cols=5, vgap=10, hgap=25)
         heading = wx.StaticText(parent=self.panel, id=-1, label="Enter search term:")
         self.search_box = wx.TextCtrl(parent=self.panel, id=-1, size=(120,-1),  style=wx.TE_PROCESS_ENTER)
         self.Bind(wx.EVT_TEXT_ENTER, self.on_search_box, self.search_box)
@@ -63,6 +63,10 @@ class MainWindow(wx.Frame):
         self.search_button.SetDefault()
         self.Bind(wx.EVT_BUTTON, self.on_search_button, self.search_button)
         search_sizer.Add(self.search_button)
+
+        self.enable_html_cb = wx.CheckBox(self.panel, -1, "Enable HTML in snippet", style=wx.ALIGN_RIGHT)
+        self.Bind(wx.EVT_CHECKBOX, self.on_enable_html_cb, self.enable_html_cb)
+        search_sizer.Add(self.enable_html_cb)
 
         # @todo start using this one?
         #self.search_ctrl = wx.SearchCtrl(parent=self.panel, id=-1)
@@ -120,6 +124,10 @@ class MainWindow(wx.Frame):
         self.results_page.SetSizer(box)
 
 
+    def on_enable_html_cb(self, event):
+        conf.EnableHtmlInSnippet = self.enable_html_cb.IsChecked()
+
+
     def on_exit(self, event):
         self.Destroy()
 
@@ -153,7 +161,9 @@ class MainWindow(wx.Frame):
         self.current_html = ""
         self.html.SetPage("")
         for page in self.current_pages.values():
-            props = {"title": page["title"], "categories": "", "image_url": "", "snippet": page["snippet"].replace("<", "&lt;")} # @todo make better
+            props = {"title": page["title"], "categories": "", "image_url": "", "snippet": page["snippet"]}
+            if not conf.EnableHtmlInSnippet:
+                props["snippet"] = props["snippet"].replace("<", "&lt;") # @todo make better
             if "categories" in page and page["categories"]:
                 props["categories"] = " | ".join(page["categories"])
             if "first_image" in page and page["first_image"]:

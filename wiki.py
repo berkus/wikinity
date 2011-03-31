@@ -3,20 +3,20 @@ Small quick dirty module for querying wiki.
 
 @author     Erki Suurjaak <erki@lap.ee>
 @created    31.03.2011
-@modified   31.03.2011
+@modified   01.04.2011
 """
 import urllib2
 import json
+import re
 
 import common
 import conf
 
 
-BASE_URL = "http://en.wikipedia.org/w/api.php?"
-DEBUG = 0
+BASE_URL = "http://%s/w/api.php?" % conf.WikiUrl
 
 opener = urllib2.build_opener()
-opener.addheaders = [("User-agent", "Wikkr/%s" % conf.WikiUrl)]
+opener.addheaders = [("User-agent", "Wikkr/%s" % conf.Version)]
 
 
 
@@ -28,10 +28,15 @@ def get_page(page_title):
     result = {}
 
     # Simply make 
-    query = "action=parse&section=0&page=%s" % urllib2.quote(page_title.encode("utf-8"))
+    query = "action=parse&disablepp=1&section=0&page=%s" % urllib2.quote(page_title.encode("utf-8"))
     data = query_json(query)
     if data:
-        result["snippet"] = data["parse"]["text"].values().pop()
+        snippet = data["parse"]["text"].values().pop()
+        error_regex = re.compile("<strong[^>]+class=[\"']error[\"'].+</strong>", re.DOTALL)
+        snippet = re.sub(error_regex, "", snippet)
+        infotable_regex = re.compile("<table[^>]+class=[\"']infobox.+</table>", re.DOTALL)
+        snippet = re.sub(infotable_regex, "", snippet)
+        result["snippet"] = snippet
         result["title"] = data["parse"]["displaytitle"]
         result["images"] = []
         for image in data["parse"]["images"]:
@@ -45,7 +50,7 @@ def get_page_categories(page_title):
     Returns the categories for the page, as a list of titles.
     """
     result = []
-    query = "action=query&prop=categories&clshow=!hidden&cllimit=100&titles=%s" % urllib2.quote(page_title)
+    query = "action=query&prop=categories&clshow=!hidden&cllimit=100&titles=%s" % urllib2.quote(page_title.encode("utf-8"))
     data = query_json(query)
     if data:
         for pageid, props in data["query"]["pages"].items():
@@ -63,7 +68,7 @@ def get_image(image_title):
     found.
     """
     result = {}
-    query = "action=query&prop=imageinfo&iiprop=url|size&iiurlwidth=200&iiurlheight=200&titles=%s" % urllib2.quote(image_title)
+    query = "action=query&prop=imageinfo&iiprop=url|size&iiurlwidth=200&iiurlheight=200&titles=%s" % urllib2.quote(image_title.encode("utf-8"))
     data = query_json(query)
     if data:
         for pageid, props in data["query"]["pages"].items():
@@ -97,7 +102,7 @@ def get_page_first_image(page_title):
         for pageid, props in data["query"]["pages"].items():
             if pageid is not "-1" and "images" in props:
                 for image in props["images"]:
-                    query = "action=query&prop=imageinfo&iiprop=url|size&iiurlwidth=200&iiurlheight=200&titles=%s" % urllib2.quote(image["title"])
+                    query = "action=query&prop=imageinfo&iiprop=url|size&iiurlwidth=200&iiurlheight=200&titles=%s" % urllib2.quote(image["title"].encode("utf-8"))
                     image_data = query_json(query)
                     if image_data:
                         for image_pageid, image_props in image_data["query"]["pages"].items():
@@ -119,26 +124,8 @@ def query_json(query_string):
     """
     result = {}
     url = "%sformat=json&%s" % (BASE_URL, query_string)
-    if DEBUG:
-        print url
     page = opener.open(url).read()
     data = json.loads(page)
-    if DEBUG:
-        print data
     if "error" not in data:
         result = data
     return result
-
-
-
-if "__main__" == __name__:
-    page = get_page("fanta")
-    print "----------------------------------------------------------------\nPAGE: "
-    print page
-    print "----------------------------------------------------------------\nIMAGE: "
-    for i in page["images"]:
-        image = get_image(i)
-        print image
-    print "----------------------------------------------------------------\nCATEGORIES: "
-    categories = get_page_categories("fanta")
-    print categories
