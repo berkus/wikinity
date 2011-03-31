@@ -41,7 +41,7 @@ def init():
 
 class MainWindow(wx.Frame):
     """The main frame of the application."""
-    title = "Wikkr 0.1"
+    title = "Wikkr %s" % conf.Version
 
 
     def __init__(self):
@@ -142,38 +142,24 @@ class MainWindow(wx.Frame):
 
     def add_result(self, result_number, page):
         if self.new_search_ongoing:
-            self.current_html = "" # @todo remove debugging var
             self.current_pages.clear()
-            self.html.SetPage("")
             self.new_search_ongoing = False
-        self.last_page = page
-        entry = {"number": result_number, "title": "", "snippet": "", "categories": "", "object": None}
-        if type(page) is dict:
-            entry.update(page)
-        else:
-            entry["title"] = page.page_title
-            entry["object"] = page
-        if entry["title"] in self.current_pages:
-            self.current_pages[entry["title"]]["object"] = entry["object"]
-        else:
-            self.current_pages[entry["title"]] = entry
+        self.current_pages[page["title"]] = page
         self.update_results()
 
 
     def update_results(self):
         """Update the whole table, adding in newly arrived page data"""
-        self.current_html = conf.HtmlHeader
-        ordered = sorted(self.current_pages.values(), key=lambda entry: entry["number"])
-        for entry in ordered:
-            page = entry["object"]
-            if page:
-                if page.categories_initialized and not entry["categories"]:
-                    entry["categories"] = reduce(lambda str, cat: str + " | " + cat.page_title if str else cat.page_title, page.categories_initialized, "")
-                if page.expanded and not entry["snippet"]:
-                    entry["snippet"] = page.expanded[:300].replace("<", "&lt;") # @todo horrible, I know
-            html_slice = conf.HtmlEntryTemplate % (entry["number"], entry["title"], entry["snippet"], entry["categories"])
+        self.current_html = ""
+        self.html.SetPage("")
+        for page in self.current_pages.values():
+            props = {"title": page["title"], "categories": "", "image_url": "", "snippet": page["snippet"].replace("<", "&lt;")} # @todo make better
+            if "categories" in page and page["categories"]:
+                props["categories"] = " | ".join(page["categories"])
+            if "first_image" in page and page["first_image"]:
+                    props["image_url"] = page["first_image"]["url"] if page["first_image"]["width"] < 200 else page["first_image"]["thumburl"]
+            html_slice = conf.HtmlEntryTemplate % (props["title"], props["snippet"], props["image_url"], props["categories"])
             self.current_html += "\n\n" + html_slice
-        self.current_html += "\n\n" + conf.HtmlFooter
         self.html.SetPage(self.current_html)
             
 

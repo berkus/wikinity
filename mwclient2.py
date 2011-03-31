@@ -3,8 +3,8 @@ Extends mwclient seamlessly with additional functionality, like performing
 opensearch, and getting page components conveniently.
 
 Pages retrieved here have two new members:
-- categories_initialized, for holding the retrieved categories
-- expanded, for holding the retrieved expanded text
+- categories_initialized, holds the initialized generator
+- expanded, holds the retrieved expanded text
 
 @author      Erki Suurjaak <erki@lap.ee>
 @created     30.03.2011

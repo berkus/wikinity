@@ -6,6 +6,7 @@ Miscellaneous application configuration.
 @modified   31.03.2011
 """
 
+Version = "0.1.9"
 
 LogFilename = "wikkr.log"
 
@@ -15,11 +16,5 @@ WikiUrl = "en.wikipedia.org"
 """Maximum number of results to parse."""
 MaxResults = 10
 
-HtmlHeader = "<table><tr><td width='20'><b>#</b></td><td width='150'><b>Title</b></td><td width='400'><b>Snippet</b></td><td width='150'><b>Categories</b></td>"
-HtmlFooter = "</table>"
-
-"""
-HTML template for a single result entry. Multiple entries will be wrapped between header and footer.
-Placeholders: 1-number, 2-title, 3-snippet, 4-categories.
-"""
-HtmlEntryTemplate = "<tr><td width='20' valign='top'>%s.</td><td width='150' valign='top'><u>%s</u></td><td width='400' valign='top'>%s</td><td width='150' valign='top'><em>%s</em></td></tr>"
+"""HTML template for a single result entry. Placeholders: 1-title, 2-snippet, 3-first image tag, 4-categories."""
+HtmlEntryTemplate = "<h1>TITLE: %s</h1><div>SNIPPET: %s<br /></div><p/><div>IMAGE: %s<br /></div><div><em>CATEGORIES: %s</em></div>"
