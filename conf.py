@@ -17,7 +17,7 @@ WikiUrl = "en.wikipedia.org"
 MaxResults = 10
 
 """HTML template for a single result entry. Placeholders: 1-title, 2-snippet, 3-first image tag, 4-categories."""
-HtmlEntryTemplate = "<h1>TITLE: %s</h1><div>SNIPPET: %s<br /></div><p/><div>IMAGE: %s'<br /></div><div><em>CATEGORIES: %s</em></div>"
+HtmlEntryTemplate = "<h1>TITLE: %s</h1><div>SNIPPET: %s<br /></div><p/><div>IMAGE: %s<br /></div><div><em>CATEGORIES: %s</em></div>"
 
 """wx.html tends to crash for complex HTML."""
 EnableHtmlInSnippet = False
