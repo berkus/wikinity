@@ -191,7 +191,7 @@ class MessageHandler(threading.Thread):
         while self.isRunning:
             message = messageQueue.get() # Gives a list, first item the message, second item the arguments
             if "log" == message[0]:
-                trunced = message[1][0] if len(message[1][0]) < 130 else message[1][0][:130] + ".."
+                trunced = message[1][0] if len(message[1][0]) < 200 else message[1][0][:200] + ".."
                 mainWindow.log_message(trunced)
             elif "status" == message[0]:
                 mainWindow.statusbar.SetStatusText(message[1][0])

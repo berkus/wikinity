@@ -28,7 +28,7 @@ def get_page(page_title):
     result = {}
 
     # Simply make 
-    query = "action=parse&disablepp=1&section=0&page=%s" % urllib2.quote(page_title.encode("utf-8"))
+    query = "action=parse&disablepp=1&redirects=1&section=0&page=%s" % urllib2.quote(page_title.encode("utf-8"))
     data = query_json(query)
     if data:
         snippet = data["parse"]["text"].values().pop()
@@ -50,7 +50,7 @@ def get_page_categories(page_title):
     Returns the categories for the page, as a list of titles.
     """
     result = []
-    query = "action=query&prop=categories&clshow=!hidden&cllimit=100&titles=%s" % urllib2.quote(page_title.encode("utf-8"))
+    query = "action=query&prop=categories&clshow=!hidden&cllimit=100&redirects=1&titles=%s" % urllib2.quote(page_title.encode("utf-8"))
     data = query_json(query)
     if data:
         for pageid, props in data["query"]["pages"].items():
@@ -68,7 +68,7 @@ def get_image(image_title):
     found.
     """
     result = {}
-    query = "action=query&prop=imageinfo&iiprop=url|size&iiurlwidth=200&iiurlheight=200&titles=%s" % urllib2.quote(image_title.encode("utf-8"))
+    query = "action=query&prop=imageinfo&iiprop=url|size&iiurlwidth=200&iiurlheight=200&redirects=1&titles=%s" % urllib2.quote(image_title.encode("utf-8"))
     data = query_json(query)
     if data:
         for pageid, props in data["query"]["pages"].items():
@@ -94,7 +94,7 @@ def get_page_first_image(page_title):
     result = {}
 
     # First, query all images
-    query = "action=query&prop=images&imlimit=100&titles=%s" % urllib2.quote(page_title.encode("utf-8"))
+    query = "action=query&prop=images&imlimit=100&redirects=1&titles=%s" % urllib2.quote(page_title.encode("utf-8"))
     data = query_json(query)
 
     # Then, get details on one image
@@ -102,7 +102,7 @@ def get_page_first_image(page_title):
         for pageid, props in data["query"]["pages"].items():
             if pageid is not "-1" and "images" in props:
                 for image in props["images"]:
-                    query = "action=query&prop=imageinfo&iiprop=url|size&iiurlwidth=200&iiurlheight=200&titles=%s" % urllib2.quote(image["title"].encode("utf-8"))
+                    query = "action=query&prop=imageinfo&iiprop=url|size&iiurlwidth=200&iiurlheight=200&redirects=1&titles=%s" % urllib2.quote(image["title"].encode("utf-8"))
                     image_data = query_json(query)
                     if image_data:
                         for image_pageid, image_props in image_data["query"]["pages"].items():
@@ -123,7 +123,8 @@ def query_json(query_string):
     If an error resulted, returns an empty dict.
     """
     result = {}
-    url = "%sformat=json&%s" % (BASE_URL, query_string)
+    url = "%s%s&format=json" % (BASE_URL, query_string)
+    common.log(url)
     page = opener.open(url).read()
     data = json.loads(page)
     if "error" not in data:

@@ -6,7 +6,7 @@ Miscellaneous application configuration.
 @modified   01.04.2011
 """
 
-Version = "0.1.12"
+Version = "0.1.13"
 
 LogFilename = "wikkr.log"
 
