@@ -6,7 +6,7 @@ are not allowed.
 
 @author     Erki Suurjaak <erki@lap.ee>
 @created    29.03.2011
-@modified   31.03.2011
+@modified   02.04.2011
 """
 import Queue
 import threading
@@ -17,18 +17,18 @@ import gui
 import wiki
 
 
-messageHandler = None
-messageQueue = None # Message queue to search
+message_handler = None
+message_queue = None # Message queue to search
 
 def init():
-    global messageHandler, messageQueue, site
-    messageQueue = Queue.Queue()
-    messageHandler = MessageHandler()
+    global message_handler, message_queue, site
+    message_queue = Queue.Queue()
+    message_handler = MessageHandler()
 
 
 def search(term):
     common.log("Searching for '%s'.", term)
-    messageQueue.put(term)
+    message_queue.put(term)
 
 
 
@@ -41,9 +41,9 @@ class MessageHandler(threading.Thread):
 
 
     def run(self):
-        self.isRunning = True
-        while self.isRunning:
-            term = messageQueue.get() # Gives a single string
+        self.is_running = True
+        while self.is_running:
+            term = message_queue.get() # Gives a single string
             results = 0
             page = wiki.get_page(term)
             if page:
@@ -52,7 +52,7 @@ class MessageHandler(threading.Thread):
                 gui.message("page", results, page)
                 # Retrieve more data and signal
                 common.log("Page '%s', retrieving categories.", page["title"])
-                page["categories"] = wiki.get_page_categories(page["title"])
+                page["categories"] = wiki.get_categories(page["title"])
                 common.log("Page '%s', received %d categories.", page["title"], len(page["categories"]))
                 gui.message("page", results, page)
                 if page["images"]:

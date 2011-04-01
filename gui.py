@@ -3,10 +3,11 @@ Application GUI functionality.
 
 @author     Erki Suurjaak <erki@lap.ee>
 @created    29.03.2011
-@modified   01.04.2011
+@modified   02.04.2011
 """
 import Queue
 import threading
+import webbrowser
 import wx
 import wx.html
 import wx.py
@@ -17,25 +18,25 @@ import search
 
 
 application = None   # wx application
-mainWindow = None    # MainWindow instance
-messageQueue = None  # Queue for messages to GUI
+main_window = None    # MainWindow instance
+message_queue = None  # Queue for messages to GUI
 
 
 def message(msg, *args):
     """Registers a message with the GUI."""
-    if messageQueue:
-        messageQueue.put([msg, list(args)])
+    if message_queue:
+        message_queue.put([msg, list(args)])
 
 
 
 def init():
     """Starts up the GUI and runs until program exit."""
-    global application, mainWindow, messageQueue
-    messageQueue = Queue.Queue()
+    global application, main_window, message_queue
+    message_queue = Queue.Queue()
     messageHandler = MessageHandler()
     application = wx.App()
-    mainWindow = MainWindow()
-    mainWindow.console.run("self = gui.mainWindow")
+    main_window = MainWindow()
+    main_window.console.run("self = gui.main_window")
     application.MainLoop()
 
 
@@ -52,35 +53,18 @@ class MainWindow(wx.Frame):
 
         self.panel = wx.Panel(self, -1)
 
-        search_sizer = wx.FlexGridSizer(rows=1, cols=5, vgap=10, hgap=25)
-        heading = wx.StaticText(parent=self.panel, id=-1, label="Enter search term:")
-        self.search_box = wx.TextCtrl(parent=self.panel, id=-1, size=(120,-1),  style=wx.TE_PROCESS_ENTER)
-        self.Bind(wx.EVT_TEXT_ENTER, self.on_search_box, self.search_box)
-        search_sizer.Add(heading)
-        search_sizer.Add(self.search_box)
-
-        self.search_button = wx.Button(parent=self.panel, id=wx.ID_OK, label="Go!")
-        self.search_button.SetDefault()
-        self.Bind(wx.EVT_BUTTON, self.on_search_button, self.search_button)
-        search_sizer.Add(self.search_button)
-
-        self.enable_html_cb = wx.CheckBox(self.panel, -1, "Enable HTML in snippet", style=wx.ALIGN_RIGHT)
-        self.Bind(wx.EVT_CHECKBOX, self.on_enable_html_cb, self.enable_html_cb)
-        search_sizer.Add(self.enable_html_cb)
-
-        # @todo start using this one?
-        #self.search_ctrl = wx.SearchCtrl(parent=self.panel, id=-1)
-        #search_sizer.Add(self.search_ctrl)
+        self.browser_button = wx.Button(parent=self.panel, id=wx.ID_OK, label="Open frontend in browser")
+        self.browser_button.Bind(wx.EVT_BUTTON, self.on_browser_button)
 
         self.notebook = wx.Notebook(self.panel, -1, style=wx.NB_TOP)
 
-        self.create_results_page()
         self.create_log_page()
+        self.create_search_page()
         self.create_console_page()
 
 
         box = wx.BoxSizer(wx.VERTICAL)
-        box.Add(search_sizer, flag=wx.ALL | wx.EXPAND, border=5)
+        box.Add(self.browser_button, flag=wx.ALL, border=5)
         box.Add(item=self.notebook, flag=wx.EXPAND | wx.ALL)
         self.panel.SetSizer(box) 
 
@@ -114,12 +98,29 @@ class MainWindow(wx.Frame):
         self.log_page.SetSizer(box)
 
 
-    def create_results_page(self):
+    def create_search_page(self):
         self.results_page = wx.Panel(self.notebook, -1)
-        self.notebook.AddPage(self.results_page, 'Results')
+        self.notebook.AddPage(self.results_page, 'Local search')
+
+        search_sizer = wx.FlexGridSizer(rows=1, cols=6, vgap=10, hgap=25)
+        heading = wx.StaticText(parent=self.results_page, id=-1, label="Enter search term:")
+        self.search_box = wx.TextCtrl(parent=self.results_page, id=-1, size=(120,-1),  style=wx.TE_PROCESS_ENTER)
+        self.Bind(wx.EVT_TEXT_ENTER, self.on_search_box, self.search_box)
+        search_sizer.Add(heading)
+        search_sizer.Add(self.search_box)
+
+        self.search_button = wx.Button(parent=self.results_page, id=wx.ID_OK, label="Go!")
+        self.search_button.SetDefault()
+        self.search_button.Bind(wx.EVT_BUTTON, self.on_search_button)
+        search_sizer.Add(self.search_button)
+
+        self.enable_html_cb = wx.CheckBox(self.results_page, -1, "Enable HTML in snippet", style=wx.ALIGN_RIGHT)
+        self.Bind(wx.EVT_CHECKBOX, self.on_enable_html_cb, self.enable_html_cb)
+        search_sizer.Add(self.enable_html_cb)
 
         self.html = wx.html.HtmlWindow(self.results_page)
         box = wx.BoxSizer(wx.VERTICAL)
+        box.Add(search_sizer, flag=wx.ALL, border=5)
         box.Add(self.html, proportion=1, flag=wx.ALL | wx.EXPAND, border=5)
         self.results_page.SetSizer(box)
 
@@ -142,6 +143,10 @@ class MainWindow(wx.Frame):
             message("status", "Searching for '%s'.." % term)
             self.new_search_ongoing = True
             search.search(term)
+
+
+    def on_browser_button(self, event):
+        webbrowser.open("http://localhost:%s/%s" % (conf.BackendPort, conf.FrontendFile))
 
 
     def log_message(self, message):
@@ -167,7 +172,7 @@ class MainWindow(wx.Frame):
             if "categories" in page and page["categories"]:
                 props["categories"] = " | ".join(page["categories"])
             if "first_image" in page and page["first_image"]:
-                    props["image_url"] = page["first_image"]["url"] if page["first_image"]["width"] < 200 else page["first_image"]["thumburl"]
+                    props["image_url"] = page["first_image"]["url"]
             html_slice = conf.HtmlEntryTemplate % (props["title"], props["snippet"], props["image_url"], props["categories"])
             self.current_html += "\n\n" + html_slice
         self.html.SetPage(self.current_html)
@@ -187,17 +192,17 @@ class MessageHandler(threading.Thread):
         self.start()
 
     def run(self):
-        self.isRunning = True
-        while self.isRunning:
-            message = messageQueue.get() # Gives a list, first item the message, second item the arguments
+        self.is_running = True
+        while self.is_running:
+            message = message_queue.get() # Gives a list, first item the message, second item the arguments
             if "log" == message[0]:
-                trunced = message[1][0] if len(message[1][0]) < 200 else message[1][0][:200] + ".."
-                mainWindow.log_message(trunced)
+                trunced = message[1][0] if len(message[1][0]) < conf.GuiMaxLogLineLength else message[1][0][:conf.GuiMaxLogLineLength] + ".."
+                main_window.log_message(trunced)
             elif "status" == message[0]:
-                mainWindow.statusbar.SetStatusText(message[1][0])
+                main_window.statusbar.SetStatusText(message[1][0])
             elif "page" == message[0]:
-                mainWindow.add_result(*message[1])
+                main_window.add_result(*message[1])
             elif "no results" == message[0]:
-                mainWindow.no_results()
+                main_window.no_results()
             else:
-                mainWindow.log_message("GUI received unknown message '%s' (%s)." % (message[0], message[1]))
+                main_window.log_message("GUI received unknown message '%s' (%s)." % (message[0], message[1]))

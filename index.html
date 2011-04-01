@@ -1,0 +1,110 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+  <title>Wikkr 0.1.14</title>
+  <script src="http://code.jquery.com/jquery-1.5.js"></script>
+</head>
+<body>
+  <div id="search_box">
+    <form id="search_form">
+      <input type="text" id="search_term" />
+      <input type="submit" value=" Search " id="search_button" />
+    </form>
+  </div>
+  <div id="results">
+    <div id="blank_result" style="display: block">
+      <h1 class="title"></h1>
+      <div class="snippet"></div>
+      <div class="image"></div>
+      <div class="categories"></div>
+    </div>
+  </div>
+
+<script type="text/javascript">
+SERVER_URL = "http://localhost:6666/";
+$("#search_form").submit(
+  function(){
+    term = $.trim($("#search_term").val());
+    if (term) { 
+      $(".search_result").remove();
+      get_page(term);
+    }
+    return false;
+  }
+);
+function get_page(title, follow_links) {
+  $.getJSON(SERVER_URL,
+    {
+      action: "get_page",
+      param: title,
+    },
+    function(data) {
+      div = $("#blank_result").clone();
+      div.attr({id: $.escape(data.title), style: "", "class": "search_result"});
+      div.find("h1").html(data.title);
+      div.find(".snippet").html(data.snippet);
+      div.appendTo('#results');
+      if (data.images) {
+        div.find(".image").attr("id", $.escape(data.images[0]))
+        get_image(data.images[0], div.find(".image"))
+      }
+      follow_links = typeof(follow_links) != 'undefined' ? follow_links : true;
+      get_categories(data.title, div.find(".categories"), follow_links)
+    }
+  );
+}
+
+function get_image(title, image_div) {
+  $.getJSON(SERVER_URL,
+    {
+      action: "get_image",
+      param: title,
+    },
+    function(data) {
+      $("<img />").attr("src", data.url).appendTo(image_div);
+    }
+   );
+}
+
+function get_categories(title, categories_div, follow_links) {
+  $.getJSON(SERVER_URL,
+    {
+      action: "get_categories",
+      param: title,
+    },
+    function(data) {
+      $.each(data, function(i, category) { 
+        if (i) {
+          $("<span />").text(" | ").appendTo(categories_div);
+        }
+        $("<a />").attr("href", category).text(category).appendTo(categories_div);
+        if (follow_links) {
+          get_page(category, false);
+        }
+      });
+    }
+   );
+}
+
+// jquery.escape 1.0 - escape strings for use in jQuery selectors
+// http://ianloic.com/tag/jquery.escape
+// Copyright 2009 Ian McKellar <http://ian.mckellar.org/>
+// Just like jQuery you can use it under either the MIT license or the GPL
+// (see: http://docs.jquery.com/License)
+// 2011-04-01, added encodeURIComponent, Erki Suurjaak.
+(function() {
+escape_re = /[#;&,\.\+\*~':"!\^\$\[\]\(\)=>|\/\\]/;
+jQuery.escape = function jQuery$escape(s) {
+  s = encodeURIComponent(s);
+  var left = s.split(escape_re, 1)[0];
+  if (left == s) return s;
+  return left + '\\' + 
+    s.substr(left.length, 1) + 
+    jQuery.escape(s.substr(left.length+1));
+}
+})();
+</script>
+</body>
+</html>

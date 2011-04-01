@@ -3,7 +3,7 @@ Small quick dirty module for querying wiki.
 
 @author     Erki Suurjaak <erki@lap.ee>
 @created    31.03.2011
-@modified   01.04.2011
+@modified   02.04.2011
 """
 import urllib2
 import json
@@ -28,7 +28,7 @@ def get_page(page_title):
     result = {}
 
     # Simply make 
-    query = "action=parse&disablepp=1&redirects=1&section=0&page=%s" % urllib2.quote(page_title.encode("utf-8"))
+    query = "action=parse&disablepp=1&redirects=1&section=0&page=%s" % urllib2.quote(page_title)
     data = query_json(query)
     if data:
         snippet = data["parse"]["text"].values().pop()
@@ -45,12 +45,12 @@ def get_page(page_title):
     return result
 
 
-def get_page_categories(page_title):
+def get_categories(page_title):
     """
     Returns the categories for the page, as a list of titles.
     """
     result = []
-    query = "action=query&prop=categories&clshow=!hidden&cllimit=100&redirects=1&titles=%s" % urllib2.quote(page_title.encode("utf-8"))
+    query = "action=query&prop=categories&clshow=!hidden&cllimit=100&redirects=1&titles=%s" % urllib2.quote(page_title)
     data = query_json(query)
     if data:
         for pageid, props in data["query"]["pages"].items():
@@ -63,57 +63,27 @@ def get_page_categories(page_title):
 
 def get_image(image_title):
     """
-    Returns data for the specified image, with pageid, title, url,
-    thumburl, width, height, thumbwidth, thumbheight. Or an empty dict if not
-    found.
+    Returns data for the specified image, with title and url, or an empty
+    dict if not found. If the full size image is wider than 200px, returns a 
+    thumbnail URL.
     """
     result = {}
-    query = "action=query&prop=imageinfo&iiprop=url|size&iiurlwidth=200&iiurlheight=200&redirects=1&titles=%s" % urllib2.quote(image_title.encode("utf-8"))
+    query = "action=query&prop=imageinfo&iiprop=url|size&iiurlwidth=200&iiurlheight=200&redirects=1&titles=%s" % urllib2.quote(image_title)
     data = query_json(query)
     if data:
         for pageid, props in data["query"]["pages"].items():
             if pageid is not "-1" and "imageinfo" in props:
-                result = props["imageinfo"][0]
+                if props["imageinfo"][0]["width"] > 200 or props["imageinfo"][0]["height"] > 200:
+                    url = props["imageinfo"][0]["thumburl"]
+                else:
+                    url = props["imageinfo"][0]["url"]
+                result = {"title": props["title"], "url": url}
                 result["pageid"] = pageid
                 result["title"] = props["title"]
                 break
 
     return result
 
-
-
-def get_page_first_image(page_title):
-    """
-    @todo this seems unnecessary, remove - getting section 0 already gives the real
-    images on the page.
-
-    Returns the first image on the page as a dict, with pageid, title, url,
-    thumburl, width, height, thumbwidth, thumbheight. Or an empty dict if not
-    found.
-    """
-    result = {}
-
-    # First, query all images
-    query = "action=query&prop=images&imlimit=100&redirects=1&titles=%s" % urllib2.quote(page_title.encode("utf-8"))
-    data = query_json(query)
-
-    # Then, get details on one image
-    if data:
-        for pageid, props in data["query"]["pages"].items():
-            if pageid is not "-1" and "images" in props:
-                for image in props["images"]:
-                    query = "action=query&prop=imageinfo&iiprop=url|size&iiurlwidth=200&iiurlheight=200&redirects=1&titles=%s" % urllib2.quote(image["title"].encode("utf-8"))
-                    image_data = query_json(query)
-                    if image_data:
-                        for image_pageid, image_props in image_data["query"]["pages"].items():
-                            if "-1" != image_pageid and "imageinfo" in image_props:
-                                result = image_props["imageinfo"][0]
-                                result["pageid"] = image_pageid
-                                result["title"] = image_props["title"]
-                                break
-                break
-
-    return result
 
 
 def query_json(query_string):
