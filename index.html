@@ -5,6 +5,8 @@
   <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
   <title>Wikkr 0.1.14</title>
   <script src="http://code.jquery.com/jquery-1.5.js"></script>
+  <base href="http://en.wikipedia.org/" />
+  <base target="_blank" />
 </head>
 <body>
   <div id="search_box">
@@ -46,7 +48,7 @@ function get_page(title, follow_links) {
       div.find("h1").html(data.title);
       div.find(".snippet").html(data.snippet);
       div.appendTo('#results');
-      if (data.images) {
+      if (data.images.length) {
         div.find(".image").attr("id", $.escape(data.images[0]))
         get_image(data.images[0], div.find(".image"))
       }
@@ -79,7 +81,7 @@ function get_categories(title, categories_div, follow_links) {
         if (i) {
           $("<span />").text(" | ").appendTo(categories_div);
         }
-        $("<a />").attr("href", category).text(category).appendTo(categories_div);
+        $("<a />").attr("href", "/wiki/"+category).text(category).appendTo(categories_div);
         if (follow_links) {
           get_page(category, false);
         }
