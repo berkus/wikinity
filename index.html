@@ -1,112 +1,85 @@
-
 <!DOCTYPE html>
 <html>
 <head>
   <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
-  <title>Wikkr 0.1.14</title>
-  <script src="http://code.jquery.com/jquery-1.5.js"></script>
-  <base href="http://en.wikipedia.org/" />
+  <title>Wikinity 0.1.15</title>
+  <script src="js/jquery-1.5.js"></script>
+  <script src="js/arbor.js"></script>
+  <script src="js/arbor-tween.js"></script>
+  <script src="js/arbor-graphics.js"></script>
+  <script src="js/wikinity.js"></script>
+  <style>
+  * { 
+    margin: 0; 
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    height: 100%;
+    font-family: Verdana;
+  }
+  #nav {
+    background: #F60;
+    color: #FFF;
+    padding: 5px 5px 5px 5px;
+    height: 25px;
+  }
+  #main {
+    margin: 10px;
+    padding: 20px;
+    min-height: 85%;
+    border-radius: 15px;
+    -moz-border-radius: 15px 15px 15px 15px;
+    border: 1px solid #CCC;
+  }
+  #search_box {
+    float: right;
+  }
+  #heading {
+    float: left;
+    padding: 4px;
+  }
+  #search_term {
+    border: none;
+    outline: none;
+    border-radius: 4px;
+    -moz-border-radius: 4px 4px 4px 4px;
+  }
+  #clear_button {
+    border-radius: 4px;
+    -moz-border-radius: 4px 4px 4px 4px;
+    border: 1px solid #CCC;
+    color: #F60;
+    background: #FFF;
+  }
+  #search_button {
+    border-radius: 4px;
+    -moz-border-radius: 4px 4px 4px 4px;
+    border: 1px solid #CCC;
+    color: #FFF;
+    background: transparent;
+  }
+  </style>
   <base target="_blank" />
 </head>
 <body>
-  <div id="search_box">
+  <div id="nav">
     <form id="search_form">
-      <input type="text" id="search_term" />
-      <input type="submit" value=" Search " id="search_button" />
+      <span id="heading"><b>Wikinity</b> | browse the neighborhood of Wikipedia articles</span>
+      <span id="search_box">
+        <input type="text" id="search_term" />
+        <input type="submit" value="go" id="search_button" />
+        <input type="button" value="clear" id="clear_button" />
+      </span>
     </form>
   </div>
-  <div id="results">
-    <div id="blank_result" style="display: block">
-      <h1 class="title"></h1>
-      <div class="snippet"></div>
-      <div class="image"></div>
-      <div class="categories"></div>
-    </div>
+
+  <div id="main">
+    <canvas id="canvas" width="800" height="700"></canvas>
+    <div id="results"></div>
   </div>
 
-<script type="text/javascript">
-SERVER_URL = "http://localhost:6666/";
-$("#search_form").submit(
-  function(){
-    term = $.trim($("#search_term").val());
-    if (term) { 
-      $(".search_result").remove();
-      get_page(term);
-    }
-    return false;
-  }
-);
-function get_page(title, follow_links) {
-  $.getJSON(SERVER_URL,
-    {
-      action: "get_page",
-      param: title,
-    },
-    function(data) {
-      div = $("#blank_result").clone();
-      div.attr({id: $.escape(data.title), style: "", "class": "search_result"});
-      div.find("h1").html(data.title);
-      div.find(".snippet").html(data.snippet);
-      div.appendTo('#results');
-      if (data.images.length) {
-        div.find(".image").attr("id", $.escape(data.images[0]))
-        get_image(data.images[0], div.find(".image"))
-      }
-      follow_links = typeof(follow_links) != 'undefined' ? follow_links : true;
-      get_categories(data.title, div.find(".categories"), follow_links)
-    }
-  );
-}
-
-function get_image(title, image_div) {
-  $.getJSON(SERVER_URL,
-    {
-      action: "get_image",
-      param: title,
-    },
-    function(data) {
-      $("<img />").attr("src", data.url).appendTo(image_div);
-    }
-   );
-}
-
-function get_categories(title, categories_div, follow_links) {
-  $.getJSON(SERVER_URL,
-    {
-      action: "get_categories",
-      param: title,
-    },
-    function(data) {
-      $.each(data, function(i, category) { 
-        if (i) {
-          $("<span />").text(" | ").appendTo(categories_div);
-        }
-        $("<a />").attr("href", "/wiki/"+category).text(category).appendTo(categories_div);
-        if (follow_links) {
-          get_page(category, false);
-        }
-      });
-    }
-   );
-}
-
-// jquery.escape 1.0 - escape strings for use in jQuery selectors
-// http://ianloic.com/tag/jquery.escape
-// Copyright 2009 Ian McKellar <http://ian.mckellar.org/>
-// Just like jQuery you can use it under either the MIT license or the GPL
-// (see: http://docs.jquery.com/License)
-// 2011-04-01, added encodeURIComponent, Erki Suurjaak.
-(function() {
-escape_re = /[#;&,\.\+\*~':"!\^\$\[\]\(\)=>|\/\\]/;
-jQuery.escape = function jQuery$escape(s) {
-  s = encodeURIComponent(s);
-  var left = s.split(escape_re, 1)[0];
-  if (left == s) return s;
-  return left + '\\' + 
-    s.substr(left.length, 1) + 
-    jQuery.escape(s.substr(left.length+1));
-}
-})();
-</script>
 </body>
 </html>

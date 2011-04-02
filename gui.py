@@ -3,18 +3,17 @@ Application GUI functionality.
 
 @author     Erki Suurjaak <erki@lap.ee>
 @created    29.03.2011
-@modified   02.04.2011
+@modified   03.04.2011
 """
 import Queue
+import sys
 import threading
 import webbrowser
 import wx
-import wx.html
 import wx.py
 
 import common
 import conf
-import search
 
 
 application = None   # wx application
@@ -42,14 +41,13 @@ def init():
 
 class MainWindow(wx.Frame):
     """The main frame of the application."""
-    title = "Wikkr %s" % conf.Version
+    title = "%s %s" % (conf.Name, conf.Version)
 
 
     def __init__(self):
-        wx.Frame.__init__(self, parent=None, id=-1, title=self.title, size=(800, 750))
+        wx.Frame.__init__(self, parent=None, id=-1, title=self.title, size=(700, 700))
 
         self.current_pages = {}
-        self.new_search_ongoing = False
 
         self.panel = wx.Panel(self, -1)
 
@@ -59,18 +57,14 @@ class MainWindow(wx.Frame):
         self.notebook = wx.Notebook(self.panel, -1, style=wx.NB_TOP)
 
         self.create_log_page()
-        self.create_search_page()
         self.create_console_page()
 
-
         box = wx.BoxSizer(wx.VERTICAL)
-        box.Add(self.browser_button, flag=wx.ALL, border=5)
-        box.Add(item=self.notebook, flag=wx.EXPAND | wx.ALL)
+        box.Add(self.browser_button, proportion=0, flag=wx.ALL, border=5)
+        box.Add(item=self.notebook, proportion=1, flag=wx.EXPAND | wx.ALL)
         self.panel.SetSizer(box) 
 
         self.Bind(wx.EVT_CLOSE, self.on_exit)
-
-        self.search_box.SetFocus()
 
         self.statusbar = self.CreateStatusBar()
         self.Centre()
@@ -80,109 +74,36 @@ class MainWindow(wx.Frame):
     def create_console_page(self):
         self.console_page = wx.Panel(self.notebook, -1)
         self.notebook.AddPage(self.console_page, 'Console')
-        self.console = wx.py.shell.Shell(parent=self.console_page, id=-1, introText=wx.py.version.VERSION, size=(780, 600))
+        self.console = wx.py.shell.Shell(parent=self.console_page, id=-1, introText=wx.py.version.VERSION)
+        box = wx.BoxSizer(wx.VERTICAL)
+        box.Add(self.console, proportion=1, flag=wx.EXPAND, border=5)
+        self.console_page.SetSizer(box)
 
 
     def create_log_page(self):
         self.log_page = wx.Panel(self.notebook, -1)
         self.notebook.AddPage(self.log_page, 'Log')
 
-        self.log = wx.TextCtrl(self.log_page, -1, style=wx.TE_MULTILINE, size=(740, 600))
+        self.log = wx.TextCtrl(self.log_page, -1, style=wx.TE_MULTILINE)
         self.log.SetEditable(False)
         self.clear_log_button = wx.Button(parent=self.log_page, id=-1, label="Clear log")
         self.clear_log_button.Bind(event=wx.EVT_BUTTON, handler=lambda event: self.log.Clear())
 
         box = wx.BoxSizer(wx.VERTICAL)
-        box.Add(self.log, flag=wx.ALL | wx.EXPAND, border=5)
-        box.Add(self.clear_log_button)
+        box.Add(self.log, proportion=1, flag=wx.ALL | wx.EXPAND, border=5)
+        box.Add(self.clear_log_button, proportion=0)
         self.log_page.SetSizer(box)
 
 
-    def create_search_page(self):
-        self.results_page = wx.Panel(self.notebook, -1)
-        self.notebook.AddPage(self.results_page, 'Local search')
-
-        search_sizer = wx.FlexGridSizer(rows=1, cols=6, vgap=10, hgap=25)
-        heading = wx.StaticText(parent=self.results_page, id=-1, label="Enter search term:")
-        self.search_box = wx.TextCtrl(parent=self.results_page, id=-1, size=(120,-1),  style=wx.TE_PROCESS_ENTER)
-        self.Bind(wx.EVT_TEXT_ENTER, self.on_search_box, self.search_box)
-        search_sizer.Add(heading)
-        search_sizer.Add(self.search_box)
-
-        self.search_button = wx.Button(parent=self.results_page, id=wx.ID_OK, label="Go!")
-        self.search_button.SetDefault()
-        self.search_button.Bind(wx.EVT_BUTTON, self.on_search_button)
-        search_sizer.Add(self.search_button)
-
-        self.enable_html_cb = wx.CheckBox(self.results_page, -1, "Enable HTML in snippet", style=wx.ALIGN_RIGHT)
-        self.Bind(wx.EVT_CHECKBOX, self.on_enable_html_cb, self.enable_html_cb)
-        search_sizer.Add(self.enable_html_cb)
-
-        self.html = wx.html.HtmlWindow(self.results_page)
-        box = wx.BoxSizer(wx.VERTICAL)
-        box.Add(search_sizer, flag=wx.ALL, border=5)
-        box.Add(self.html, proportion=1, flag=wx.ALL | wx.EXPAND, border=5)
-        self.results_page.SetSizer(box)
-
-
-    def on_enable_html_cb(self, event):
-        conf.EnableHtmlInSnippet = self.enable_html_cb.IsChecked()
-
-
     def on_exit(self, event):
-        self.Destroy()
-
-
-    def on_search_box(self, event):
-        self.on_search_button(event)
-
-
-    def on_search_button(self, event):
-        term = self.search_box.Value.strip()
-        if term:
-            message("status", "Searching for '%s'.." % term)
-            self.new_search_ongoing = True
-            search.search(term)
-
+        sys.exit()
 
     def on_browser_button(self, event):
-        webbrowser.open("http://localhost:%s/%s" % (conf.BackendPort, conf.FrontendFile))
+        webbrowser.open(conf.FrontendFile)
 
 
     def log_message(self, message):
         self.log.AppendText(unicode(message) + "\n")
-
-
-    def add_result(self, result_number, page):
-        if self.new_search_ongoing:
-            self.current_pages.clear()
-            self.new_search_ongoing = False
-        self.current_pages[page["title"]] = page
-        self.update_results()
-
-
-    def update_results(self):
-        """Update the whole table, adding in newly arrived page data"""
-        self.current_html = ""
-        self.html.SetPage("")
-        for page in self.current_pages.values():
-            props = {"title": page["title"], "categories": "", "image_url": "", "snippet": page["snippet"]}
-            if not conf.EnableHtmlInSnippet:
-                props["snippet"] = props["snippet"].replace("<", "&lt;") # @todo make better
-            if "categories" in page and page["categories"]:
-                props["categories"] = " | ".join(page["categories"])
-            if "first_image" in page and page["first_image"]:
-                    props["image_url"] = page["first_image"]["url"]
-            html_slice = conf.HtmlEntryTemplate % (props["title"], props["snippet"], props["image_url"], props["categories"])
-            self.current_html += "\n\n" + html_slice
-        self.html.SetPage(self.current_html)
-            
-
-
-    def no_results(self):
-        self.current_html = "<em>No results found</em>"
-        self.html.SetPage(self.current_html)
-        
 
 
 class MessageHandler(threading.Thread):
@@ -200,9 +121,5 @@ class MessageHandler(threading.Thread):
                 main_window.log_message(trunced)
             elif "status" == message[0]:
                 main_window.statusbar.SetStatusText(message[1][0])
-            elif "page" == message[0]:
-                main_window.add_result(*message[1])
-            elif "no results" == message[0]:
-                main_window.no_results()
             else:
                 main_window.log_message("GUI received unknown message '%s' (%s)." % (message[0], message[1]))

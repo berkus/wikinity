@@ -12,8 +12,6 @@ import conf
 import gui
 
 
-
-
 def log(message, *args):
     """Logs the message to file and GUI."""
     if args:

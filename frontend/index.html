@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+  <title>Wikinity 0.1.15</title>
+  <script src="inc/jquery-1.5.js"></script>
+  <script src="inc/arbor.js"></script>
+  <script src="inc/arbor-tween.js"></script>
+  <script src="inc/arbor-graphics.js"></script>
+  <script src="inc/wikinity.js"></script>
+  <link rel="stylesheet" href="inc/style.css" type="text/css">
+  <base target="_blank" />
+</head>
+<body>
+  <div id="nav">
+    <form id="search_form">
+      <span id="heading"><b>Wikinity</b> | browse the neighborhood of Wikipedia articles</span>
+      <span id="search_box">
+        <input type="text" id="search_term" />
+        <input type="submit" value="go" id="search_button" />
+        <input type="button" value="clear" id="clear_button" />
+      </span>
+    </form>
+  </div>
+
+  <div id="main">
+    <div id="results"></div>
+    <canvas id="canvas" width="800" height="700"></canvas>
+  </div>
+
+</body>
+</html>

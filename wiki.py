@@ -16,7 +16,7 @@ import conf
 BASE_URL = "http://%s/w/api.php?" % conf.WikiUrl
 
 opener = urllib2.build_opener()
-opener.addheaders = [("User-agent", "Wikkr/%s" % conf.Version)]
+opener.addheaders = [("User-agent", "%s/%s" % (conf.Name, conf.Version))]
 
 
 
@@ -32,15 +32,23 @@ def get_page(page_title):
     data = query_json(query)
     if data:
         snippet = data["parse"]["text"].values().pop()
+        anchor_regex = re.compile("<[/]*a[^>]*>", re.DOTALL)
+        snippet = re.sub(anchor_regex, "", snippet)
+        img_regex = re.compile("<img[^>]+[/]>", re.DOTALL)
+        snippet = re.sub(img_regex, "", snippet)
+        div_regex = re.compile("<div[^>]*>.+</div>", re.DOTALL)
+        snippet = re.sub(div_regex, "", snippet)
         error_regex = re.compile("<strong[^>]+class=[\"']error[\"'].+</strong>", re.DOTALL)
         snippet = re.sub(error_regex, "", snippet)
-        infotable_regex = re.compile("<table[^>]+class=[\"']infobox.+</table>", re.DOTALL)
-        snippet = re.sub(infotable_regex, "", snippet)
+        table_regex = re.compile("<table[^>]*>.+</table>", re.DOTALL)
+        snippet = re.sub(table_regex, "", snippet)
         result["snippet"] = snippet
         result["title"] = data["parse"]["displaytitle"]
         result["images"] = []
         for image in data["parse"]["images"]:
-            result["images"].append("File:%s" % image)
+            if ".svg" != image[-4:].lower() and image not in ["Ambox_content.png"]:
+                # Temporary filtering. SVGs are usually wiki icons.
+                result["images"].append("File:%s" % image)
 
     return result
 
@@ -64,11 +72,11 @@ def get_categories(page_title):
 def get_image(image_title):
     """
     Returns data for the specified image, with title and url, or an empty
-    dict if not found. If the full size image is wider than 200px, returns a 
+    dict if not found. If the full size image is larger than the limit, returns a 
     thumbnail URL.
     """
     result = {}
-    query = "action=query&prop=imageinfo&iiprop=url|size&iiurlwidth=200&iiurlheight=200&redirects=1&titles=%s" % urllib2.quote(image_title)
+    query = "action=query&prop=imageinfo&iiprop=url|size&iiurlwidth=60&iiurlheight=80&redirects=1&titles=%s" % urllib2.quote(image_title)
     data = query_json(query)
     if data:
         for pageid, props in data["query"]["pages"].items():

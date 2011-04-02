@@ -1,3 +1,31 @@
+--------------------------------------------------------------------------------
+Canvas drawing examples:
+
+// Putting an image
+var canvas = $(canvas).get(0);
+var ctx = canvas.getContext("2d");
+var img = new Image();
+img.src = 'https://developer.mozilla.org/skins/mdn/Transitional/img/mdn-logo-compact.png';
+var pt = {x: 100, y: 100};
+ctx.drawImage(img, pt.x, pt.y);
+
+
+// Putting text. FF/Chrome
+ctx.fillStyle    = '#00f';
+ctx.font         = 'italic 30px sans-serif';
+ctx.textBaseline = 'top';
+ctx.fillText  ('Hello world!', 0, 0);
+ctx.font         = 'bold 30px sans-serif';
+ctx.strokeText('Hello world!', 0, 50);
+
+
+
+
+Graph examples:
+http://thejit.org/static/v20/Jit/Examples/RGraph/example1.html
+http://thejit.org/static/v20/Jit/Examples/Hypertree/example2.html
+--------------------------------------------------------------------------------
+
 TODO list:
 - get external links section. this seems to be doable only by getting
   section titled "See also" and its links

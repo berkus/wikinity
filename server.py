@@ -1,18 +1,19 @@
 """
 Backend server, listens on HTTP for wiki requests, performs requests and
-sends results back to frontend, over JSON.
+sends results back to frontend, in JSON.
 
 Initially uses a very simple raw HTTP server.
 
 @author     Erki Suurjaak <erki@lap.ee>
 @created    01.03.2011
-@modified   02.04.2011
+@modified   03.04.2011
 """
 import BaseHTTPServer
 import cgi
 import datetime
 import json
 import threading
+import types
 import wsgiref.simple_server
 
 import common
@@ -29,7 +30,11 @@ def init():
 
 class RequestHandler(object):
     def __call__(self, environ, start_response):
-        server_thread.environ = environ
+        # Nice hack to prevent wsgiref.handlers.BaseHandler from printing any
+        # exception it encounters (and on interrupted AJAX requests, it encounters
+        # plenty).
+        handler = start_response.__self__
+        handler.log_exception = types.MethodType(lambda *args: None, handler, handler.__class__)
 
         arg_list = []
         if "POST" == environ["REQUEST_METHOD"]:
@@ -50,21 +55,17 @@ class RequestHandler(object):
         query = dict(arg_list)
         common.log("Got %s query '%s'.", environ["REQUEST_METHOD"], data)
 
-        if "/index.html" == environ["PATH_INFO"]:
-            with file(conf.FrontendFile) as f:
-                message = f.read()
-        else:
-            response = {}
-            if "action" in query and "param" in query:
-                response = getattr(wiki, query["action"])(query["param"])
-            message = json.dumps(response)
-            common.log("Sending response '%s'.", message)
+        response = {}
+        if "action" in query and "param" in query:
+            response = getattr(wiki, query["action"])(query["param"])
+        message = json.dumps(response)
+        if "callback" in query:
+            # JSONP query - need to define the callback function for frontend
+            message = "%s(%s)" % (query["callback"], message)
+        common.log("Sending response '%s'.", message)
 
-        server_thread.start_response = start_response("200 OK", [("Content-Type", "text/html")])
+        start_response("200 OK", [("Content-Type", "text/html")])
         return [ message ]
-
-
-
 
 
 class ServerThread(threading.Thread):
