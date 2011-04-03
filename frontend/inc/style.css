@@ -77,3 +77,27 @@ body {
 #results img {
   float: right;
 }
+#results a.close {
+	background: transparent;
+  text-decoration: none;
+	font-weight: bold;
+  font-size: 10px;
+	color: #F00;
+  cursor: pointer;
+  position: relative;
+  left: 2px;
+  top: -6px;
+	float: right;
+}
+#results a.wiki {
+	background: transparent;
+  text-decoration: none;
+	font-weight: bold;
+  font-size: 10px;
+	color: #00F;
+  cursor: pointer;
+  position: relative;
+  left: -1px;
+  top: -6px;
+	float: left;
+}
