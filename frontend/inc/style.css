@@ -104,7 +104,6 @@ input[type=button], input[type=submit] {
   font-weight: normal;
 }
 #results td {
-  text-align: justified;
   font-size: 8px;
   vertical-align: top;
 }

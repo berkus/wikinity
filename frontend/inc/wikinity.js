@@ -1,3 +1,11 @@
+// All page logic. Expects the jQuery and Arbor scripts to be included.
+//
+// wikinity_backend or wikinity_direct must also be included.
+//
+// @author    Erki Suurjaak
+// @created   02.04.2011
+// @modified  03.04.2011
+
 // jQuery replaces ? with the created callback function name, this allows for
 // cross-site requests.
 const WIKI_API_URL = "http://en.wikipedia.org/w/api.php?callback=?";
@@ -32,7 +40,7 @@ function get_page(title, depth_to_follow, connected_page) {
             // the old node by this name, as its name can no longer be modified.
             remove_node(nodes[title]);
           }
-          var page = {title: data.parse.displaytitle, snippet: data.parse.text.*, images: []};
+          var page = {title: data.parse.displaytitle, snippet: (data.parse.text)["*"], images: []};
           for (var i in data.parse.images) {
             if (".svg" != data.parse.images[i].slice(-4)) {
               // SVG images are probably wiki icons
@@ -140,10 +148,10 @@ function get_see_also(title, depth_to_follow) {
               if (i >= limit) {
                 return false; // break foreach
               }
-              add_node({"title": link_data.*});
-              sys.addEdge(title, link_data.*)
+              add_node({"title": link_data["*"]});
+              sys.addEdge(title, link_data["*"])
 
-              get_page(link_data.*, depth_to_follow, title);
+              get_page(link_data["*"], depth_to_follow, title);
             });
           }
         );
@@ -190,6 +198,7 @@ function get_categories(title, depth_to_follow) {
 function add_node(data) {
   var node = nodes[data.title];
   var heading = null;
+  var click_function = null;
   if (!node) {
     node = $("<div />");
     node.json = data;
@@ -325,7 +334,7 @@ var Renderer = function(elt){
   
   return that;
 }
-  
+
  
 $(document).ready(function(){
 
