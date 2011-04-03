@@ -6,7 +6,7 @@ Miscellaneous application configuration.
 @modified   03.04.2011
 """
 
-Version = "0.1.17"
+Version = "0.1.18"
 
 Name = "Wikinity"
 
