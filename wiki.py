@@ -3,7 +3,7 @@ Small quick dirty module for querying wiki.
 
 @author     Erki Suurjaak <erki@lap.ee>
 @created    31.03.2011
-@modified   02.04.2011
+@modified   03.04.2011
 """
 import urllib2
 import json
@@ -69,19 +69,39 @@ def get_categories(page_title):
     return result
 
 
+def get_see_also(page_title):
+    """
+    Returns the "see also" links for the page, as a list of titles.
+    """
+    result = []
+    query = "action=parse&prop=sections&disablepp=1&redirects=1&page=%s" % urllib2.quote(page_title)
+    data = query_json(query)
+    if data:
+        for props in data["parse"]["sections"]:
+            if "See also" == props["line"]:
+                links_query = "action=parse&prop=links&disablepp=1&redirects=1&section=%s&page=%s" % (props["number"], urllib2.quote(page_title))
+                links_data = query_json(links_query)
+                if links_data:
+                    for link in links_data["parse"]["links"]:
+                        result.append(link["*"])
+                break
+
+    return result
+
+
 def get_image(image_title):
     """
     Returns data for the specified image, with title and url, or an empty
-    dict if not found. If the full size image is larger than the limit, returns a 
-    thumbnail URL.
+    dict if not found. If the full size image is larger than the configured maximums,
+    returns a thumbnail URL.
     """
     result = {}
-    query = "action=query&prop=imageinfo&iiprop=url|size&iiurlwidth=60&iiurlheight=80&redirects=1&titles=%s" % urllib2.quote(image_title)
+    query = "action=query&prop=imageinfo&iiprop=url|size&iiurlwidth=%s&iiurlheight=%s&redirects=1&titles=%s" % (conf.MaxImageWidth, conf.MaxImageHeight, urllib2.quote(image_title))
     data = query_json(query)
     if data:
         for pageid, props in data["query"]["pages"].items():
             if pageid is not "-1" and "imageinfo" in props:
-                if props["imageinfo"][0]["width"] > 200 or props["imageinfo"][0]["height"] > 200:
+                if props["imageinfo"][0]["width"] > conf.MaxImageWidth or props["imageinfo"][0]["height"] > conf.MaxImageHeight:
                     url = props["imageinfo"][0]["thumburl"]
                 else:
                     url = props["imageinfo"][0]["url"]
@@ -91,7 +111,6 @@ def get_image(image_title):
                 break
 
     return result
-
 
 
 def query_json(query_string):
