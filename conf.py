@@ -6,7 +6,7 @@ Miscellaneous application configuration.
 @modified   03.04.2011
 """
 
-Version = "0.1.16"
+Version = "0.1.17"
 
 Name = "Wikinity"
 
@@ -23,5 +23,7 @@ WikiUrl = "en.wikipedia.org"
 GuiMaxLogLineLength = 500
 
 """Maximum image dimensions - thumbnail will be used if original is larger."""
-MaxImageWidth = 60
-MaxImageHeight = 80
+MaxImageWidth = 2500
+MaxImageHeight = 2500
+ThumbnailWidth = 200
+ThumbnailHeight = 200

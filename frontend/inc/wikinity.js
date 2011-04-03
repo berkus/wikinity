@@ -1,9 +1,14 @@
 // jQuery replaces ? with the created callback function name, this allows for
 // cross-site requests.
-var SERVER_URL = "http://localhost:8888/?callback=?";
+const SERVER_URL = "http://localhost:8888/?callback=?";
+const MAX_IMG_WIDTH = 60;
+const MAX_IMG_HEIGHT = 80;
+const DEFAULT_LINKS_LIMIT = 5;
 var sys = null; // Arbor ParticleSystem instance
 var gfx = null; // Arbor Graphics instance
 var nodes = {}; // {title: jquery_node, }
+var limit = DEFAULT_LINKS_LIMIT;
+var images_enabled = true;
 
 
 function add_node(data) {
@@ -11,14 +16,12 @@ function add_node(data) {
   var heading = null;
   if (!node) {
     node = $("<div />");
-    node.title = data.title;
+    node.json = data;
     node.links_queried = false;
     $("<a />").attr({"class": "wiki", "title": "open wiki", "href": "http://en.wikipedia.org/wiki/"+data.title}).text("w").appendTo(node);
     $("<a />").attr({"class": "close", "title": "close"}).text("x").click(function() { remove_node(node); return false; }).appendTo(node);
     if (data.snippet) {
       node.css("background", "#DFF")
-      heading = $("<h1 />").html(data.title).appendTo(node);
-      $("<span />").html(data.snippet.substr(0, 300)).css({"text-align": "justified", "font-size": "9px"}).appendTo(node);
     } else {
       heading = $("<h2 />").html(data.title).appendTo(node);
     }
@@ -26,23 +29,32 @@ function add_node(data) {
     sys.addNode(data.title, {"title": data.title, "element": node});
     nodes[data.title] = node;
   } else {
-    if (data.snippet) {
-      node.find("h1").remove();
-      node.find("h2").remove();
-      node.find("span").remove();
-      node.css("background", "#EFF")
-      heading = $("<h1 />").html(data.title).appendTo(node);
-      $("<span />").html(data.snippet.substr(0, 300)).appendTo(node);
-    }
+    node.json = data;
+    node.css("background", "#EFF");
+    node.children().not("a").remove(); // New info arrived, empty all except close/wiki links
   }
-  heading.click(function() { if (!node.links_queried) node.links_queried = true; get_page(data.title, 1); });
+  if (data.snippet) {
+    heading = $("<h1 />").html(data.title).appendTo(node);
+    // Wrap snippet in <span> as it can contain a flat list of HTML
+    snippet = $($("<span />").html(data.snippet));
+    // Parse out tables, those tend to not have text content
+    snippet.find("table").empty().remove(); // Emptying first should be faster
+    snippet.find("div").remove();
+    snippet.find("img").remove();
+    $("<table />").append($("<tr />").append($("<td />").append($(snippet.html().substr(0, 500))))).appendTo(node);
+    click_function = function() { if (!node.links_queried) node.links_queried = true; get_see_also(data.title, 1); };
+  } else {
+    click_function = function() { if (!node.links_queried) node.links_queried = true; get_page(data.title, 1); }
+  }
+  heading.click(click_function);
   heading.hover(function() { if (!node.links_queried) heading.css('cursor','pointer'); }, function() { heading.css('cursor','auto'); });
+  node.hover(function() { if (!node.links_queried) heading.css('cursor','pointer'); }, function() { heading.css('cursor','auto'); });
   return node;
 }
 
 
 function remove_node(node) {
-  sys.pruneNode(node.title);
+  sys.pruneNode(node.json.title);
   node.remove();
   delete nodes.title;
 }
@@ -62,6 +74,11 @@ function clear_results() {
 }
 
 
+function open_settings() {
+  $("#settings").slideToggle("fast");
+}
+
+
 function get_page(title, depth_to_follow, connected_page) {
   $.getJSON(SERVER_URL,
     {
@@ -70,6 +87,7 @@ function get_page(title, depth_to_follow, connected_page) {
     },
     function(data) {
       if (data.title) {
+        update_settings();
         if (data.title != title && nodes[title]) {
           // Page title is different in the article from the link: remove
           // the old node by this name, as its name can no longer be modified.
@@ -86,7 +104,7 @@ function get_page(title, depth_to_follow, connected_page) {
           get_see_also(data.title, depth_to_follow)
         }
 
-        if (data.images.length) {
+        if (data.images.length && images_enabled) {
           get_image(data.images[0], data.title)
         }
       } else if (nodes[title]) {
@@ -108,7 +126,15 @@ function get_image(image_title, article_title) {
       "param": image_title,
     },
     function(data) {
-      $("<img />").attr("src", data.url).appendTo(nodes[article_title]);
+      img = $("<img />").attr("src", data.url).appendTo(nodes[article_title]);
+      if (data.width > data.height && data.width > MAX_IMG_WIDTH) {
+          ratio = MAX_IMG_WIDTH / data.width;
+          img.css({"width": MAX_IMG_WIDTH, "height": data.height * ratio});
+      } else if (data.height > data.width && data.height > MAX_IMG_HEIGHT) {
+          ratio = 80 / data.height;
+          img.css({"width": data.width * ratio, "height": MAX_IMG_HEIGHT});
+      }
+      img.appendTo($("<td />").appendTo(nodes[article_title].find("tr")));
     }
    );
 }
@@ -122,7 +148,11 @@ function get_categories(title, depth_to_follow) {
       "param": title,
     },
     function(data) {
+      update_settings();
       $.each(data, function(i, page_title) { 
+        if (i >= limit) {
+          return;
+        }
         add_node({"title": page_title});
         sys.addEdge(title, page_title)
 
@@ -141,8 +171,12 @@ function get_see_also(title, depth_to_follow) {
       "param": title,
     },
     function(data) {
-        no_data = true;
+        var no_data = true;
+        update_settings();
         $.each(data, function(i, page_title) { 
+          if (i >= limit) {
+            return;
+          }
           no_data = false;
           add_node({"title": page_title});
           sys.addEdge(title, page_title)
@@ -155,6 +189,15 @@ function get_see_also(title, depth_to_follow) {
       }
     }
    );
+}
+
+
+function update_settings() {
+  limit = parseInt($("#setting_link_limit").val());
+  if (NaN == limit) {
+    limit = DEFAULT_LINKS_LIMIT;
+  }
+  images_enabled = $("#setting_images_enabled").is(":checked");
 }
 
 
@@ -233,9 +276,11 @@ $(document).ready(function(){
     }
   );
 
+  $("#setting_link_limit").val(DEFAULT_LINKS_LIMIT);
 
   $("#clear_button").click(clear_results);
 
+  $("#settings_button").click(open_settings);
 
   $(window).load(function () { 
     $(':input:visible:enabled:first').focus(); 

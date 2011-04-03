@@ -27,29 +27,50 @@ body {
 #search_box {
   float: right;
 }
+#settings {
+  background: #F60;
+  display: none;
+  padding: 5px;
+  font-size: 10px;
+  border-radius: 4px;
+  -moz-border-radius: 4px 4px 4px 4px;
+  position: absolute;
+  top: 30px;
+  right: 0px;
+}
+#settings tr > td:last-of-type {
+  text-align: right;
+}
+#settings input {
+  width: 25px;
+  text-align: right;
+  font-size: 10px;
+}
 #heading {
   float: left;
   padding: 4px;
 }
-#search_term {
+input[type=text] {
   border: none;
   outline: none;
   border-radius: 4px;
   -moz-border-radius: 4px 4px 4px 4px;
 }
-#clear_button {
+input[type=button], input[type=submit] {
   border-radius: 4px;
   -moz-border-radius: 4px 4px 4px 4px;
   border: 1px solid #CCC;
+}
+#search_button, #settings_button {
+  color: #FFF;
+  background: transparent;
+}
+#clear_button {
   color: #F60;
   background: #FFF;
 }
-#search_button {
-  border-radius: 4px;
-  -moz-border-radius: 4px 4px 4px 4px;
-  border: 1px solid #CCC;
-  color: #FFF;
-  background: transparent;
+#results {
+  font-size: 11px;
 }
 #results div {
   position: absolute;
@@ -60,19 +81,34 @@ body {
   border: 1px solid #CCC;
   display: none;
   width: 200px;
+
+  z-index: auto;
+  opacity: 0.8;
+  -moz-opacity: 1.0;
+  filter:alpha(opacity=100);
+}
+#results div:hover {
+  z-index: 1;
+
+  opacity: 1;
+  -moz-opacity: 1.0;
+  filter:alpha(opacity=100);
 }
 #results h1 {
   text-align: center;
   font-size: 15px;
+  margin: 0px 30px 0px 30px;
 }
 #results h2 {
   text-align: center;
   font-size: 12px;
   font-weight: normal;
+  margin: 0px 30px 0px 30px;
 }
-#results span {
+#results td {
   text-align: justified;
   font-size: 8px;
+  vertical-align: top;
 }
 #results img {
   float: right;

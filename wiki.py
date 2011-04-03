@@ -36,12 +36,12 @@ def get_page(page_title):
         snippet = re.sub(anchor_regex, "", snippet)
         img_regex = re.compile("<img[^>]+[/]>", re.DOTALL)
         snippet = re.sub(img_regex, "", snippet)
-        div_regex = re.compile("<div[^>]*>.+</div>", re.DOTALL)
-        snippet = re.sub(div_regex, "", snippet)
+        #div_regex = re.compile("<div[^>]*>.+</div>", re.DOTALL)
+        #snippet = re.sub(div_regex, "", snippet)
         error_regex = re.compile("<strong[^>]+class=[\"']error[\"'].+</strong>", re.DOTALL)
         snippet = re.sub(error_regex, "", snippet)
-        table_regex = re.compile("<table[^>]*>.+</table>", re.DOTALL)
-        snippet = re.sub(table_regex, "", snippet)
+        #table_regex = re.compile("<table[^>]*>.+</table>", re.DOTALL)
+        #snippet = re.sub(table_regex, "", snippet)
         result["snippet"] = snippet
         result["title"] = data["parse"]["displaytitle"]
         result["images"] = []
@@ -79,7 +79,7 @@ def get_see_also(page_title):
     if data:
         for props in data["parse"]["sections"]:
             if "See also" == props["line"]:
-                links_query = "action=parse&prop=links&disablepp=1&redirects=1&section=%s&page=%s" % (props["number"], urllib2.quote(page_title))
+                links_query = "action=parse&prop=links&disablepp=1&redirects=1&section=%s&page=%s" % (props["index"], urllib2.quote(page_title))
                 links_data = query_json(links_query)
                 if links_data:
                     for link in links_data["parse"]["links"]:
@@ -92,11 +92,10 @@ def get_see_also(page_title):
 def get_image(image_title):
     """
     Returns data for the specified image, with title and url, or an empty
-    dict if not found. If the full size image is larger than the configured maximums,
-    returns a thumbnail URL.
+    dict if not found.
     """
     result = {}
-    query = "action=query&prop=imageinfo&iiprop=url|size&iiurlwidth=%s&iiurlheight=%s&redirects=1&titles=%s" % (conf.MaxImageWidth, conf.MaxImageHeight, urllib2.quote(image_title))
+    query = "action=query&prop=imageinfo&iiprop=url|size&iiurlwidth=%s&iiurlheight=%s&redirects=1&titles=%s" % (conf.ThumbnailWidth, conf.ThumbnailHeight, urllib2.quote(image_title))
     data = query_json(query)
     if data:
         for pageid, props in data["query"]["pages"].items():
@@ -105,9 +104,9 @@ def get_image(image_title):
                     url = props["imageinfo"][0]["thumburl"]
                 else:
                     url = props["imageinfo"][0]["url"]
-                result = {"title": props["title"], "url": url}
-                result["pageid"] = pageid
-                result["title"] = props["title"]
+                result = {"title": props["title"], "url": url, "pageid": pageid, "title": props["title"]}
+                result["width"] = props["imageinfo"][0]["width"]
+                result["height"] = props["imageinfo"][0]["height"]
                 break
 
     return result
