@@ -4,11 +4,15 @@ const SERVER_URL = "http://localhost:8888/?callback=?";
 const MAX_IMG_WIDTH = 60;
 const MAX_IMG_HEIGHT = 80;
 const DEFAULT_LINKS_LIMIT = 5;
+
 var sys = null; // Arbor ParticleSystem instance
 var gfx = null; // Arbor Graphics instance
 var nodes = {}; // {title: jquery_node, }
+var focused_node = null; // Currently focused node
+
 var limit = DEFAULT_LINKS_LIMIT;
 var images_enabled = true;
+var autoclear_results = true;
 
 
 function add_node(data) {
@@ -18,6 +22,7 @@ function add_node(data) {
     node = $("<div />");
     node.json = data;
     node.links_queried = false;
+    node.is_complete = false;
     $("<a />").attr({"class": "wiki", "title": "open wiki", "href": "http://en.wikipedia.org/wiki/"+data.title}).text("w").appendTo(node);
     $("<a />").attr({"class": "close", "title": "close"}).text("x").click(function() { remove_node(node); return false; }).appendTo(node);
     if (data.snippet) {
@@ -28,10 +33,13 @@ function add_node(data) {
     node.appendTo("#results");
     sys.addNode(data.title, {"title": data.title, "element": node});
     nodes[data.title] = node;
+    node.hover(function() { focused_node = node; }, function() { focused_node = null; });
   } else {
-    node.json = data;
-    node.css("background", "#EFF");
-    node.children().not("a").remove(); // New info arrived, empty all except close/wiki links
+    if (!node.is_complete) {
+      node.json = data;
+      node.css("background", "#EFF");
+      node.children().not("a").remove(); // New info arrived, empty all except close/wiki links
+    }
   }
   if (data.snippet) {
     heading = $("<h1 />").html(data.title).appendTo(node);
@@ -43,12 +51,12 @@ function add_node(data) {
     snippet.find("img").remove();
     $("<table />").append($("<tr />").append($("<td />").append($(snippet.html().substr(0, 500))))).appendTo(node);
     click_function = function() { if (!node.links_queried) node.links_queried = true; get_see_also(data.title, 1); };
+    node.is_complete = true;
   } else {
     click_function = function() { if (!node.links_queried) node.links_queried = true; get_page(data.title, 1); }
   }
   heading.click(click_function);
   heading.hover(function() { if (!node.links_queried) heading.css('cursor','pointer'); }, function() { heading.css('cursor','auto'); });
-  node.hover(function() { if (!node.links_queried) heading.css('cursor','pointer'); }, function() { heading.css('cursor','auto'); });
   return node;
 }
 
@@ -198,20 +206,21 @@ function update_settings() {
     limit = DEFAULT_LINKS_LIMIT;
   }
   images_enabled = $("#setting_images_enabled").is(":checked");
+  autoclear_results = $("#setting_autoclear_results").is(":checked");
 }
 
 
 var Renderer = function(elt){
-  var dom = $(elt)
-  var canvas = dom.get(0)
+  var dom = $(elt);
+  var canvas = dom.get(0);
   var ctx = canvas.getContext("2d");
-  gfx = arbor.Graphics(canvas)
+  gfx = arbor.Graphics(canvas);
 
   var that = {
     init:function(pSystem){
-      sys = pSystem
+      sys = pSystem;
       sys.screen({size:{width:dom.width(), height:dom.height()},
-                  padding:[36,60,36,60]})
+                  padding:[36,60,36,60]});
 
     },
     redraw:function(){
@@ -222,12 +231,12 @@ var Renderer = function(elt){
         // pt2:  {x:#, y:#}  target position in screen coords
         // draw a line from pt1 to pt2
         if (edge.source.data.element && edge.target.data.element && edge.source != edge.target) { // To skip dummy elements
-          ctx.strokeStyle = "rgba(0,0,0, .333)"
-          ctx.lineWidth = 1
-          ctx.beginPath()
-          ctx.moveTo(pt1.x, pt1.y)
-          ctx.lineTo(pt2.x, pt2.y)
-          ctx.stroke()
+          ctx.strokeStyle = "rgba(0,0,0, .333)";
+          ctx.lineWidth = (edge.source.data.element == focused_node || edge.target.data.element == focused_node) ? 2 : 1;
+          ctx.beginPath();
+          ctx.moveTo(pt1.x, pt1.y);
+          ctx.lineTo(pt2.x, pt2.y);
+          ctx.stroke();
         }
       })
       sys.eachNode(function(node, pt){
@@ -245,7 +254,7 @@ var Renderer = function(elt){
     },
   }
   
-  return that
+  return that;
 }
   
  
@@ -269,7 +278,8 @@ $(document).ready(function(){
     function(){
       term = $.trim($("#search_term").val());
       if (term) { 
-        clear_results();
+        update_settings();
+        if (autoclear_results) clear_results();
         get_page(term, 1);
       }
       return false;
