@@ -25,7 +25,7 @@ function get_page(title, depth_to_follow, connected_page) {
           remove_node(nodes[title]);
         }
         var node = add_node(data);
-        if (data.title != title && connected_page) {
+        if (connected_page) {
           sys.addEdge(data.title, connected_page);
         }
 

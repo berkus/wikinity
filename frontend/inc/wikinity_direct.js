@@ -42,7 +42,7 @@ function get_page(title, depth_to_follow, connected_page) {
           }
 
           var node = add_node(page);
-          if (page.title != title && connected_page) {
+          if (connected_page) {
             sys.addEdge(page.title, connected_page);
           }
 

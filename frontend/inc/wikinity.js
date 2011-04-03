@@ -12,6 +12,7 @@ const WIKI_API_URL = "http://en.wikipedia.org/w/api.php?callback=?";
 const MAX_IMG_WIDTH = 60;
 const MAX_IMG_HEIGHT = 80;
 const DEFAULT_LINKS_LIMIT = 5;
+const DEFAULT_NEIGHBORHOOD_SIZE = 1;
 
 var sys = null; // Arbor ParticleSystem instance
 var gfx = null; // Arbor Graphics instance
@@ -21,6 +22,7 @@ var focused_node = null; // Currently focused node
 var limit = DEFAULT_LINKS_LIMIT;
 var images_enabled = true;
 var autoclear_results = true;
+var neighborhood_size = DEFAULT_NEIGHBORHOOD_SIZE;
 
 
 function get_page(title, depth_to_follow, connected_page) {
@@ -198,7 +200,7 @@ function get_categories(title, depth_to_follow) {
 function add_node(data) {
   var node = nodes[data.title];
   var heading = null;
-  var click_function = null;
+  var heading_click_function = null;
   if (!node) {
     node = $("<div />");
     node.json = data;
@@ -223,6 +225,7 @@ function add_node(data) {
     }
   }
   if (data.snippet) {
+    update_settings();
     heading = $("<h1 />").html(data.title).appendTo(node);
     // Wrap snippet in <span> as it can contain a flat list of HTML
     snippet = $($("<span />").html(data.snippet));
@@ -232,30 +235,34 @@ function add_node(data) {
     snippet.find("strong.error").remove(); // Wiki error messages
     snippet.find("span.IPA").remove(); // phonetic alphabet media content
     snippet.find("img").remove();
-    snippet.find("a").each(function(index, a) {
+    shorter_snippet = $("<table />").append($("<tr />").append($("<td />").append($(snippet.html().substr(0, 1000))))).appendTo(node);
+    shorter_snippet.find("a").each(function(index, a) {
       var href = ($(this)).attr("href");
       if ("#" == href[0]) {
-        $(this).remove(); // On-page link, remove. @todo leave link contents
-      } else if ("http" != href.slice(0, 4)) {
-        ($(this)).attr("href", "http://en.wikipedia.org/" + href);
+        // On-page link, remove. @todo leave link contents
+        $(this).remove();
+      } else if ("/wiki/" == href.slice(0, 6)) {
+        ($(this)).attr("href", "http://en.wikipedia.org" + href);
+        // Have the link make a search
+        ($(this)).click(function() { get_page(decodeURIComponent(href.slice(6)), neighborhood_size, data.title); return false; });
       }
     });
-    $("<table />").append($("<tr />").append($("<td />").append($(snippet.html().substr(0, 1000))))).appendTo(node);
-    click_function = function() { if (!node.links_queried) node.links_queried = true; get_see_also(data.title, 1); };
+    heading_click_function = function() { if (!node.links_queried) node.links_queried = true; get_see_also(data.title, neighborhood_size); };
+
     node.is_complete = true;
   } else {
-    click_function = function() { if (!node.links_queried) node.links_queried = true; get_page(data.title, 1); }
+    heading_click_function = function() { if (!node.links_queried) node.links_queried = true; get_page(data.title, neighborhood_size); }
   }
-  heading.click(click_function);
+  heading.click(heading_click_function);
   heading.hover(function() { if (!node.links_queried) heading.css('cursor','pointer'); }, function() { heading.css('cursor','auto'); });
   return node;
 }
 
 
 function remove_node(node) {
+  delete nodes[node.json.title];
   sys.pruneNode(node.json.title);
   node.remove();
-  delete nodes.title;
 }
 
 
@@ -285,6 +292,10 @@ function update_settings() {
   }
   images_enabled = $("#setting_images_enabled").is(":checked");
   autoclear_results = $("#setting_autoclear_results").is(":checked");
+  neighborhood_size = parseInt($("#setting_neighborhood_size").val());
+  if (NaN == neighborhood_size) {
+    neighborhood_size = DEFAULT_NEIGHBORHOOD_SIZE;
+  }
 }
 
 
@@ -358,7 +369,7 @@ $(document).ready(function(){
       if (term) { 
         update_settings();
         if (autoclear_results) clear_results();
-        get_page(term, 1);
+        get_page(term, neighborhood_size);
       }
       return false;
     }
