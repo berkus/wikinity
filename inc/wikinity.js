@@ -18,9 +18,10 @@ const DEFAULT_NEIGHBORHOOD_SIZE = 1;
 const RESIZE_STEP_WIDTH = 10;
 const RESIZE_STEP_HEIGHT = 20;
 
-var sys = null; // Arbor ParticleSystem instance
-var gfx = null; // Arbor Graphics instance
-var nodes = {}; // {title: node object, }
+var sys = null;    // Arbor ParticleSystem instance
+var gfx = null;    // Arbor Graphics instance
+var nodes = {};    // {title: node object, }
+var canvas = null; // Canvas instance
 var focused_node = null; // Currently focused node
 
 var limit = DEFAULT_LINKS_LIMIT;
@@ -46,14 +47,39 @@ function add_node(data, referring_title) {
     node.data = data;
     node.title = data.title;
     node.element = create_graph_element(node);
-    if (data.snippet) {
-      node.complete = true;
-    }
     nodes[node.title] = node;
     node.vertice = sys.addNode(node.id, {"title": node.title, "node": node});
     if (referring_title) {
       sys.addEdge(node.id, nodes[referring_title].id);
     }
+    if (data.snippet) {
+      node.complete = true;
+    }
+    node.element.draggable({
+      containment: "#canvas",
+      //cursor: "crosshair",
+      start: function(event, ui) { node.vertice.fixed = true; },
+      stop: function(event, ui) { 
+        var heading = node.element.find("h1");
+        if (!heading) heading = node.data.node.element.find("h2");
+        var element_left = node.element.position().left;
+        var element_top = node.element.position().top;
+        var x = element_left - canvas.position().left + node.element.outerWidth() / 2;
+        var y = element_top - canvas.position().top + (heading ? parseInt(heading.css("font-size"))/2 : 0);
+        node.vertice.p = sys.fromScreen(arbor.Point(x, y));
+        node.vertice.fixed = false;
+        node.vertice.tempMass = 1000;
+      },
+      drag: function(event, ui) {
+        var heading = node.element.find("h1");
+        if (!heading) heading = node.data.node.element.find("h2");
+        var element_left = node.element.position().left;
+        var element_top = node.element.position().top;
+        var x = element_left - canvas.position().left + node.element.outerWidth() / 2;
+        var y = element_top - canvas.position().top + (heading ? parseInt(heading.css("font-size"))/2 : 0);
+        node.vertice.p = sys.fromScreen(arbor.Point(x, y));
+      }
+    });
   } else if (!node.complete) {
     update_graph_element(node, data);
     node.data = data;
@@ -64,9 +90,11 @@ function add_node(data, referring_title) {
 
 
 function remove_node(node) {
-  delete nodes[node.title];
-  sys.pruneNode(node.id);
-  node.element.remove();
+  if (node) {
+    delete nodes[node.title];
+    sys.pruneNode(node.id);
+    node.element.remove();
+  }
 }
 
 
@@ -149,7 +177,9 @@ function on_node_mousewheel(event, delta, node) {
         if (node.initial_full_width) {
           element.css("max-width", "");
           element[0].style["max-width"] = ""; 
-          element.animate({"width": node.initial_full_width, "height": node.initial_full_height}, 200, function() { content.css("display", "block"); } );
+          //element.animate({"width": node.initial_full_width, "height": node.initial_full_height}, 200, function() { content.css("display", "block"); } );
+          element.css({"width": node.initial_full_width, "height": node.initial_full_height});
+          content.css("display", "block");
         } else  {
             content.css("display", "block");
         }
@@ -185,59 +215,65 @@ function on_node_mousewheel(event, delta, node) {
 
 
 var Renderer = function(elt){
-  var canvas_element = $(elt);
-  var canvas_dom = canvas_element.get(0);
+  canvas = $(elt);
+  var canvas_dom = canvas.get(0);
   var ctx = canvas_dom.getContext("2d");
   gfx = arbor.Graphics(canvas_dom);
 
   var that = {
     init:function(pSystem){
       sys = pSystem;
-      sys.screen({size:{width:canvas_element.width(), height:canvas_element.height()},
+      sys.screen({size:{width:canvas.width(), height:canvas.height()},
                   padding:[36,60,36,60]});
-
+      $(window).resize(that.resize);
+    },
+    resize:function(){
+      canvas_dom.width = $("#main").width();
+      canvas_dom.height = $("#main").height();
+      sys.screen({"size": {"width": canvas_dom.width, "height": canvas_dom.height}})
+      that.redraw()
     },
     redraw:function(){
       gfx.clear()
       sys.eachEdge(function(edge, pt1, pt2) {
         // edge: {source:Node, target:Node, length:#, data:{}}
-        // pt1:  {x:#, y:#}  source position in screen coords
-        // pt2:  {x:#, y:#}  target position in screen coords
-        // draw a line from pt1 to pt2
         if (edge.source.data.node && edge.target.data.node && edge.source != edge.target) { // To skip dummy elements
           ctx.strokeStyle = "rgba(0,0,0, .333)";
           ctx.lineWidth = (edge.source.data.node == focused_node || edge.target.data.node == focused_node) ? 2 : 1;
           ctx.beginPath();
           ctx.moveTo(pt1.x, pt1.y);
-          ctx.lineTo(pt2.x, pt2.y);
+          //ctx.lineTo(pt2.x, pt2.y);
+          var cp1x = (pt1.x + pt2.x) / 2 + 15 * (pt2.x - pt1.x < 0 ? -1 : 1);
+          var cp1y = (pt1.y + pt2.y) / 2 + 15 * (pt2.y - pt1.y < 0 ? -1 : 1);
+          ctx.quadraticCurveTo(cp1x, cp1y, pt2.x, pt2.y)
           ctx.stroke();
         }
       })
       sys.eachNode(function(node, pt) {
-        if (node.data.node) {
-          node.data.node.element.css("display", "block"); // Initially was set to none
+        if (node.data.node && !node.fixed) {
+          if ("none" == node.data.node.element.css("display")) node.data.node.element.css("display", "block"); // Initially was set to none
           var element = node.data.node.element;
           var heading = node.data.node.element.find("h1");
           if (!heading) heading = node.data.node.element.find("h2");
-          var x = canvas_element.position().left + pt.x - element.outerWidth() / 2;
-          var y = heading ? (canvas_element.position().top + pt.y - parseInt(heading.css("font-size")) / 2) : canvas_element.position().top + pt.y;
+          var x = canvas.position().left + pt.x - element.outerWidth() / 2;
+          var y = heading ? (canvas.position().top + pt.y - parseInt(heading.css("font-size")) / 2) : canvas.position().top + pt.y;
 /*
           Was trying out how to better manage not letting divs too much over the edge,
           as the div has dimension, but points don't. Doesn't work very well, is slow
           and buggy. Especially - slow.
           var x = element.position().left;
           var y = element.position().top;
-          var new_x = canvas_element.position().left + pt.x - element.outerWidth() / 2;
-          var new_y = heading ? (canvas_element.position().top + pt.y - parseInt(heading.css("font-size")) / 2) : canvas_element.position().top + pt.y;
-          if (new_x > 0 && new_x + element.outerWidth() < canvas_element.position().left + canvas_element.outerWidth()) {
+          var new_x = canvas.position().left + pt.x - element.outerWidth() / 2;
+          var new_y = heading ? (canvas.position().top + pt.y - parseInt(heading.css("font-size")) / 2) : canvas.position().top + pt.y;
+          if (new_x > 0 && new_x + element.outerWidth() < canvas.position().left + canvas.outerWidth()) {
             x = new_x;
           } else {
-            x = (new_x < 0) ? canvas_element.position().left : canvas_element.position().left + canvas_element.outerWidth();
+            x = (new_x < 0) ? canvas.position().left : canvas.position().left + canvas.outerWidth();
           }
-          if (new_y > 0 && new_y + element.outerHeight() < canvas_element.position().top + canvas_element.outerHeight()) {
+          if (new_y > 0 && new_y + element.outerHeight() < canvas.position().top + canvas.outerHeight()) {
             y = new_y;
           } else {
-            y = (new_y < 0) ? canvas_element.position().top : canvas_element.position().top + canvas_element.outerHeight();
+            y = (new_y < 0) ? canvas.position().top : canvas.position().top + canvas.outerHeight();
           }
 */
           //@todo needs some tweaking
@@ -277,7 +313,7 @@ $(document).ready(function(){
       term = $.trim($("#search_term").val());
       if (term) { 
         if (autoclear_results) clear_results();
-        get_page(term, neighborhood_size);
+        search(term);
       }
       return false;
     }

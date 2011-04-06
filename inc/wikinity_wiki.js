@@ -28,12 +28,11 @@ const MAX_IMG_HEIGHT = 80;
  * @return        the jQuery div object containing the node HTML
  */
 function create_graph_element(node) {
-  var element = $("<div />");
+  var element = $("<div />").css("display", "none");
   element.attr("wid", node.id); // Attach wikinity id to the element
   $("<a />").attr({"class": "wiki", "title": "open wiki", "href": "http://en.wikipedia.org/wiki/"+node.data.title}).text("w").appendTo(element);
   $("<a />").attr({"class": "close", "title": "close"}).text("x").click(function() { remove_node(node); return false; }).appendTo(element);
   $("<a />").attr({"class": "toggle", "title": "toggle visibility"}).text("*").click(function() { node.usercollapsed = !node.collapsed; on_node_mousewheel(null, node.collapsed ? 1 : -100, node); return false; }).appendTo(element);
-  element.css("background", "#F6F6F6")
   var heading = $(node.data.snippet ? "<h1 />" : "<h2 />").html(node.data.title).appendTo(element);
   element.hover(function() { focused_node = node; if (node.collapsed && !node.usercollapsed) on_node_mousewheel(null, 1, node); }, function() { focused_node = null; if (autohide_contents && node.autocollapsed) on_node_mousewheel(null, -100, node); });
   element.mousewheel(function(event, delta) { on_node_mousewheel(event, delta, node); node.usercollapsed = !node.usercollapsed && node.collapsed; node.autocollapsed = node.autocollapsed && node.collapsed && !node.usercollapsed; });
@@ -107,7 +106,7 @@ function process_links(element, node) {
     if ("#" == href[0]) {
       link.remove(); // On-page link, remove. @todo leave link contents
     } else if ("/wiki/" == href.slice(0, 6)) {
-      var new_title = decodeURIComponent(href.slice(6));
+      var new_title = decodeURIComponent(href.slice(6)).replace(/_/g, " ");
       if (!node.links) {
         node.links = {};
       }
@@ -117,13 +116,44 @@ function process_links(element, node) {
       // Click handlers had problems: when swapping node content between snippet and shorter_snippet on resizing,
       // handlers got lost. Don't know why.
       //link.click(function() { if (!link.link_clicked) get_page(new_title, neighborhood_size, node.title); link.link_clicked = true; return false; });
-      // @todo fix this fuckery
-      link.attr("onclick", "javascript:get_page('"+new_title.replace("'", "\\'")+"', neighborhood_size, '"+node.title.replace("'", "\\'")+"'); return false;");
+      // @todo fix this fuckery. And it doesn't work in Opera for some reason :S
+      link.attr({"title": new_title, "onclick": "javascript:get_page('"+new_title.replace(/'/g, "\\'")+"', 0, '"+node.title.replace(/'/g, "\\'")+"'); return false;"});
     } else if ("/w/" == href.slice(0, 3)) {
       // Probably an edit link
       link.attr("href", "http://en.wikipedia.org" + href);
     }
   });
+}
+
+
+/**
+ * Searches for pages with the specified term. If one found, starts to retrieve
+ * it, if multiple found, displays links.
+ */
+function search(term) {
+  $.getJSON(WIKI_API_URL,
+    {
+      "action": "opensearch",
+      "format": "json",
+      "limit": 20,
+      "search": term,
+    },
+    function(data) {
+      if (data && data.length > 1) {
+        if (data[1].length == 1 || data[1][0].toLowerCase() == term.toLowerCase()) {
+          get_page(data[1][0], neighborhood_size);
+        } else {
+          $("<p />").text("Multiple matches for '" + term + "':").appendTo('#results');
+          var list = $("<ul />").appendTo('#results');
+          for (var i in data[1]) {
+            list.append($("<li />").append($("<a />").attr("href", "http://en.wikipedia.org/wiki/" + data[1][i].replace(/ /g, "_")).text(data[1][i]).attr("title", data[1][i]).click(function() { get_page(($(this).attr("title")), neighborhood_size); $("#results").empty(); return false; })));
+          }
+        }
+      } else {
+        $("<p />").text("No match for '" + term + "'.").appendTo('#results');
+      }
+    }
+  );
 }
 
 
@@ -134,7 +164,7 @@ function process_links(element, node) {
  * @return    true if a query was made, false otherwise
  */
 function get_page(title, depth_to_follow, connected_page) {
-  result = true;
+  var result = true;
   if (!nodes[title] || !nodes[title].complete)
   $.getJSON(WIKI_API_URL,
     {
@@ -188,8 +218,6 @@ function get_page(title, depth_to_follow, connected_page) {
           // Already here, but has no data - missing wikipedia page, mark as such.
           nodes[title].links_queried = true;
           nodes[title].element.css({"color": "#AAA", "text-decoration": "line-through"}).find(".wiki").remove();
-        } else {
-          $("<p />").text("No match for '" + title + "'.").appendTo('#results');
         }
     }
   ); else result = false;

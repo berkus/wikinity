@@ -25,6 +25,9 @@ html body {
 #search_box {
   float: right;
 }
+#search_term {
+  width: 150px;
+}
 #settings {
   background: #F60;
   display: none;
@@ -76,6 +79,7 @@ input[type=button], input[type=submit] {
   border-radius: 4px;
   -moz-border-radius: 4px 4px 4px 4px;
   border: 1px solid #CCC;
+  background: #F6F6F6;
   display: none;
   width: 200px;
   overflow: hidden;
@@ -84,6 +88,10 @@ input[type=button], input[type=submit] {
   opacity: 0.8;
   -moz-opacity: 0.8;
   filter: alpha(opacity=100);
+}
+#results > ul > a {
+  text-decoration: none;
+  cursor: pointer;
 }
 #results > div:hover {
   z-index: 1;
@@ -111,30 +119,30 @@ input[type=button], input[type=submit] {
   float: right;
 }
 #results a.close, a.wiki, a.toggle {
-	background: transparent;
+  background: transparent;
   text-decoration: none;
-	font-weight: bold;
+  font-weight: bold;
   font-size: 10px;
   cursor: pointer;
   position: relative;
   top: -6px;
 }
 #results a.close {
-	color: #F00;
+  color: #F00;
   left: 2px;
-	float: right;
+  float: right;
 }
 #results a.wiki {
-	color: #00F;
+  color: #00F;
   left: -1px;
-	float: left;
+  float: left;
 }
 #results a.toggle {
-	color: #00F;
+  color: #00F;
   left: 2px;
   top: -4px;
   font-size: 12px;
-	float: right;
+  float: right;
 }
 #credits {
   float: right;
