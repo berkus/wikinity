@@ -147,6 +147,13 @@ function get_page(title, depth_to_follow, connected_page) {
     },
     function(data) {
         if (data.parse && data.parse.displaytitle) {
+
+          if (data.parse.redirects && (nodes[data.parse.redirects[0].to] && nodes[data.parse.redirects[0].to].complete)) {
+            // The true redirected page already exists here fully.
+            remove_node(nodes[data.parse.redirects[0].from]);
+            return;
+          }
+
           if (data.parse.displaytitle != title && nodes[title]) {
             // Page title is different in the article from the link: remove
             // the old node by this name, as its name can no longer be modified.
