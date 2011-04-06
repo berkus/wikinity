@@ -46,7 +46,7 @@ function add_node(data, referring_title) {
     node.id = new Date().getTime();
     node.data = data;
     node.title = data.title;
-    node.element = create_graph_element(node);
+    node.element = create_graph_element(node, !referring_title);
     nodes[node.title] = node;
     node.vertice = sys.addNode(node.id, {"title": node.title, "node": node});
     if (referring_title) {
@@ -133,7 +133,7 @@ function update_settings() {
 
 
 /**
- * Returns the node for the specified jQuery div element.
+ * Returns the node for the specified wikinity id.
  */
 function find_node(wid) {
   for (var title in nodes) {

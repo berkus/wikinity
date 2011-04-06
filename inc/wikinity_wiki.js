@@ -24,12 +24,16 @@ const MAX_IMG_HEIGHT = 80;
 /**
  * Creates and returns the jQuery div element for the wiki page.
  *
- * @param   node  the local graph node object
- * @return        the jQuery div object containing the node HTML
+ * @param   node         the local graph node object
+ * @param   is_searched  whether is the result of a search, gets coloured differently
+ * @return               the jQuery div object containing the node HTML
  */
-function create_graph_element(node) {
+function create_graph_element(node, is_searched) {
   var element = $("<div />").css("display", "none");
   element.attr("wid", node.id); // Attach wikinity id to the element
+  if (is_searched) {
+    element.addClass("searched_node");
+  }
   $("<a />").attr({"class": "wiki", "title": "open wiki", "href": "http://en.wikipedia.org/wiki/"+node.data.title}).text("w").appendTo(element);
   $("<a />").attr({"class": "close", "title": "close"}).text("x").click(function() { remove_node(node); return false; }).appendTo(element);
   $("<a />").attr({"class": "toggle", "title": "toggle visibility"}).text("*").click(function() { node.usercollapsed = !node.collapsed; on_node_mousewheel(null, node.collapsed ? 1 : -100, node); return false; }).appendTo(element);
@@ -220,7 +224,12 @@ function get_page(title, depth_to_follow, connected_page) {
           nodes[title].element.css({"color": "#AAA", "text-decoration": "line-through"}).find(".wiki").remove();
         }
     }
-  ); else result = false;
+  ); else {
+    result = false;
+    if (connected_page) {
+      sys.addEdge(nodes[title].id, nodes[connected_page].id);
+    }
+  }
   return result;
 }
 

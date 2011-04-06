@@ -89,6 +89,9 @@ input[type=button], input[type=submit] {
   -moz-opacity: 0.8;
   filter: alpha(opacity=100);
 }
+#results > div.searched_node {
+  background: #FFD0B1;
+}
 #results > ul > a {
   text-decoration: none;
   cursor: pointer;
