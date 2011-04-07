@@ -55,31 +55,6 @@ function add_node(data, referring_title) {
     if (data.snippet) {
       node.complete = true;
     }
-    node.element.draggable({
-      containment: "#canvas",
-      //cursor: "crosshair",
-      start: function(event, ui) { node.vertice.fixed = true; },
-      stop: function(event, ui) { 
-        var heading = node.element.find("h1");
-        if (!heading) heading = node.data.node.element.find("h2");
-        var element_left = node.element.position().left;
-        var element_top = node.element.position().top;
-        var x = element_left - canvas.position().left + node.element.outerWidth() / 2;
-        var y = element_top - canvas.position().top + (heading ? parseInt(heading.css("font-size"))/2 : 0);
-        node.vertice.p = sys.fromScreen(arbor.Point(x, y));
-        node.vertice.fixed = false;
-        node.vertice.tempMass = 1000;
-      },
-      drag: function(event, ui) {
-        var heading = node.element.find("h1");
-        if (!heading) heading = node.data.node.element.find("h2");
-        var element_left = node.element.position().left;
-        var element_top = node.element.position().top;
-        var x = element_left - canvas.position().left + node.element.outerWidth() / 2;
-        var y = element_top - canvas.position().top + (heading ? parseInt(heading.css("font-size"))/2 : 0);
-        node.vertice.p = sys.fromScreen(arbor.Point(x, y));
-      }
-    });
   } else if (!node.complete) {
     update_graph_element(node, data);
     node.data = data;
@@ -133,9 +108,10 @@ function update_settings() {
 
 
 /**
- * Returns the node for the specified wikinity id.
+ * Returns the node instance for the specified jQuery object.
  */
-function find_node(wid) {
+function get_node(element) {
+  var wid = element.attr("wid")
   for (var title in nodes) {
     if (nodes[title].id == wid)
       return nodes[title];
@@ -152,7 +128,7 @@ function on_node_mousewheel(event, delta, node) {
     var element = node.element;
   } else {
     var element = $(this);
-    node = find_node(element.attr("wid"));
+    node = get_node(element);
   }
   if (node.complete) {
     var content = element.find("div.content");
@@ -211,6 +187,38 @@ function on_node_mousewheel(event, delta, node) {
     }
   }
   return false;
+}
+
+
+
+function on_node_dragstart(event, ui) {  get_node($(this)).vertice.fixed = true; };
+
+
+function on_node_dragstop(event, ui) { 
+  var element = $(this);
+  var node = get_node(element);
+  var heading = element.find("h1");
+  if (!heading) heading = element.find("h2");
+  var element_left = element.position().left;
+  var element_top = element.position().top;
+  var x = element_left - canvas.position().left + element.outerWidth() / 2;
+  var y = element_top - canvas.position().top + (heading ? parseInt(heading.css("font-size"))/2 : 0);
+  node.vertice.p = sys.fromScreen(arbor.Point(x, y));
+  node.vertice.fixed = false;
+  node.vertice.tempMass = 1000;
+}
+
+
+function on_node_drag(event, ui) {
+  var element = $(this);
+  var node = get_node(element);
+  var heading = element.find("h1");
+  if (!heading) heading = element.find("h2");
+  var element_left = element.position().left;
+  var element_top = element.position().top;
+  var x = element_left - canvas.position().left + element.outerWidth() / 2;
+  var y = element_top - canvas.position().top + (heading ? parseInt(heading.css("font-size"))/2 : 0);
+  node.vertice.p = sys.fromScreen(arbor.Point(x, y));
 }
 
 

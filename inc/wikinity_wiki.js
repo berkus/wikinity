@@ -29,7 +29,7 @@ const MAX_IMG_HEIGHT = 80;
  * @return               the jQuery div object containing the node HTML
  */
 function create_graph_element(node, is_searched) {
-  var element = $("<div />").css("display", "none");
+  var element = $("<div />").css("display", "none").appendTo("#results");
   element.attr("wid", node.id); // Attach wikinity id to the element
   if (is_searched) {
     element.addClass("searched_node");
@@ -58,9 +58,23 @@ function create_graph_element(node, is_searched) {
   } else {
     var heading_click_function = function() { if (!node.links_queried) node.links_queried = true; get_page(node.data.title, neighborhood_size); }
   }
-  heading.click(heading_click_function);
-  heading.hover(function() { if (!node.links_queried) heading.css('cursor','pointer'); }, function() { heading.css('cursor','auto'); });
   element.appendTo("#results");
+  element.draggable({
+    containment: "#canvas",
+    //cursor: "crosshair",
+    start: on_node_dragstart,
+    stop: on_node_dragstop,
+    start: on_node_dragstart,
+    drag: on_node_drag,
+  });
+  heading.click(heading_click_function);
+/*
+trying to add middle click drag, so far nothing..
+  element.mousedown(function(event) { if (2 == event.which) { event.which = 1; element.trigger("mousedown", [event]); } });
+  element.mousemove(function(event) { if (2 == event.which) { event.which = 1; element.trigger("mousemove", [event]); } });
+  element.mouseup(function(event) { if (2 == event.which) { event.which = 1; element.trigger("mouseup", [event]) } });
+*/
+  heading.hover(function() { if (!node.links_queried) heading.css('cursor','pointer'); }, function() { heading.css('cursor','auto'); });
   return element;
 }
 
@@ -143,7 +157,7 @@ function search(term) {
       "search": term,
     },
     function(data) {
-      if (data && data.length > 1) {
+      if (data && data.length > 1 && data[1].length > 0) {
         if (data[1].length == 1 || data[1][0].toLowerCase() == term.toLowerCase()) {
           get_page(data[1][0], neighborhood_size);
         } else {
