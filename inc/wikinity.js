@@ -293,7 +293,9 @@ var Renderer = function(elt){
       })
     },
   }
-  
+
+  that.resize();
+
   return that;
 }
 
@@ -385,7 +387,7 @@ $(document).ready(function(){
   //                   (zero is fast but jittery, one is smooth but cpu-intensive)
   //sys.parameters({friction:0.5, stiffness:100, repulsion:1000, gravity: true, fps: 60, dt: 0.08, precision: 1.0});
   sys.parameters({stiffness:900, repulsion:1000, gravity: true});
-  sys.renderer = Renderer("#canvas")
+  sys.renderer = Renderer("#canvas");
 
   // Perhaps I'm an ass, but it seems that Arbor cannot handle just one node in the
   // graph. At all. If there is first only one element, and another is added later,
