@@ -1,15 +1,15 @@
-// All page logic. Expects the jQuery and Arbor scripts to be included.
+// All page logic. Expects the jQuery and Springy scripts to be included.
 //
 // wikinity_backend or wikinity_wiki must also be included.
 //
-// To avoid confusion between the jQuery and Arbor and Wikinity nodes:
+// To avoid confusion between the jQuery and Springy and Wikinity nodes:
 // - node is a Wikinity node
 // - element is a jQuery node
-// - vertice is an Arbor node
+// - vertice is an Springy node
 //
 // @author    Erki Suurjaak
 // @created   02.04.2011
-// @modified  07.04.2011
+// @modified  08.04.2011
 
 // jQuery replaces ? with the created callback function name, this allows for
 // cross-site requests.
@@ -18,10 +18,12 @@ const DEFAULT_NEIGHBORHOOD_SIZE = 1;
 const RESIZE_STEP_WIDTH = 10;
 const RESIZE_STEP_HEIGHT = 20;
 
-var sys = null;    // Arbor ParticleSystem instance
-var gfx = null;    // Arbor Graphics instance
-var nodes = {};    // {title: node object, }
-var canvas = null; // Canvas instance
+var nodes = {};      // {title: node object, }
+var graph = null;    // Springy Graph instance
+var renderer = null; // Springy Renderer instance
+var canvas = null;   // Canvas instance
+var canvas_dom = null; // Canvas DOM instance
+var layout = null;   // Springy ForceDirected instance
 var focused_node = null; // Currently focused node
 
 var limit = DEFAULT_LINKS_LIMIT;
@@ -48,13 +50,14 @@ function add_node(data, referring_title) {
     node.title = data.title;
     node.element = create_graph_element(node, !referring_title);
     nodes[node.title] = node;
-    node.vertice = sys.addNode(node.id, {"title": node.title, "node": node});
-    if (referring_title) {
-      sys.addEdge(node.id, nodes[referring_title].id);
-    }
     if (data.snippet) {
       node.complete = true;
     }
+    node.vertice = graph.newNode(node);
+    if (referring_title) {
+      graph.newEdge(node.vertice, nodes[referring_title].vertice);
+    }
+    renderer.start();
   } else if (!node.complete) {
     update_graph_element(node, data);
     node.data = data;
@@ -67,7 +70,7 @@ function add_node(data, referring_title) {
 function remove_node(node) {
   if (node) {
     delete nodes[node.title];
-    sys.pruneNode(node.id);
+    graph.removeNode(node.vertice);
     node.element.remove();
   }
 }
@@ -79,11 +82,8 @@ function clear_results() {
     nodes[title].element.remove();
   }
   nodes = {};
-  if (sys) sys.prune(function(node, from, to) {
-    // dummy nodes don't have the node member
-    if (node.data.node) return true;
-  });
-  if (gfx) gfx.clear();
+  graph.filterNodes(function(node) { return false } );
+  renderer.start();
 }
 
 
@@ -190,22 +190,23 @@ function on_node_mousewheel(event, delta, node) {
 }
 
 
+var dragged = null;
 
-function on_node_dragstart(event, ui) {  get_node($(this)).vertice.fixed = true; };
+function on_node_dragstart(event, ui) {
+  var element = $(this);
+  var element_left = element.position().left;
+  var element_top = element.position().top;
+  var p = fromScreen({x: element_left - canvas.position().left, y: element_top - canvas.position().top});
+  dragged = layout.nearest(p);
+
+  dragged.point.m = 10000.0;
+
+  renderer.start();
+};
 
 
 function on_node_dragstop(event, ui) { 
-  var element = $(this);
-  var node = get_node(element);
-  var heading = element.find("h1");
-  if (!heading) heading = element.find("h2");
-  var element_left = element.position().left;
-  var element_top = element.position().top;
-  var x = element_left - canvas.position().left + element.outerWidth() / 2;
-  var y = element_top - canvas.position().top + (heading ? parseInt(heading.css("font-size"))/2 : 0);
-  node.vertice.p = sys.fromScreen(arbor.Point(x, y));
-  node.vertice.fixed = false;
-  node.vertice.tempMass = 1000;
+  dragged = null;
 }
 
 
@@ -218,85 +219,13 @@ function on_node_drag(event, ui) {
   var element_top = element.position().top;
   var x = element_left - canvas.position().left + element.outerWidth() / 2;
   var y = element_top - canvas.position().top + (heading ? parseInt(heading.css("font-size"))/2 : 0);
-  node.vertice.p = sys.fromScreen(arbor.Point(x, y));
-}
 
+  var p = fromScreen({x: x, y: y});
 
-var Renderer = function(elt){
-  canvas = $(elt);
-  var canvas_dom = canvas.get(0);
-  var ctx = canvas_dom.getContext("2d");
-  gfx = arbor.Graphics(canvas_dom);
+  dragged.point.p.x = p.x;
+  dragged.point.p.y = p.y;
 
-  var that = {
-    init:function(pSystem){
-      sys = pSystem;
-      sys.screen({size:{width:canvas.width(), height:canvas.height()},
-                  padding:[36,60,36,60]});
-      $(window).resize(that.resize);
-    },
-    resize:function(){
-      canvas_dom.width = $("#main").width();
-      canvas_dom.height = $("#main").height();
-      sys.screen({"size": {"width": canvas_dom.width, "height": canvas_dom.height}})
-      that.redraw()
-    },
-    redraw:function(){
-      gfx.clear()
-      sys.eachEdge(function(edge, pt1, pt2) {
-        // edge: {source:Node, target:Node, length:#, data:{}}
-        if (edge.source.data.node && edge.target.data.node && edge.source != edge.target) { // To skip dummy elements
-          ctx.strokeStyle = "rgba(0,0,0, .333)";
-          ctx.lineWidth = (edge.source.data.node == focused_node || edge.target.data.node == focused_node) ? 2 : 1;
-          ctx.beginPath();
-          ctx.moveTo(pt1.x, pt1.y);
-          //ctx.lineTo(pt2.x, pt2.y);
-          var cp1x = (pt1.x + pt2.x) / 2 + 15 * (pt2.x - pt1.x < 0 ? -1 : 1);
-          var cp1y = (pt1.y + pt2.y) / 2 + 15 * (pt2.y - pt1.y < 0 ? -1 : 1);
-          ctx.quadraticCurveTo(cp1x, cp1y, pt2.x, pt2.y)
-          ctx.stroke();
-        }
-      })
-      sys.eachNode(function(node, pt) {
-        if (node.data.node && !node.fixed) {
-          if ("none" == node.data.node.element.css("display")) node.data.node.element.css("display", "block"); // Initially was set to none
-          var element = node.data.node.element;
-          var heading = node.data.node.element.find("h1");
-          if (!heading) heading = node.data.node.element.find("h2");
-          var x = canvas.position().left + pt.x - element.outerWidth() / 2;
-          var y = heading ? (canvas.position().top + pt.y - parseInt(heading.css("font-size")) / 2) : canvas.position().top + pt.y;
-/*
-          Was trying out how to better manage not letting divs too much over the edge,
-          as the div has dimension, but points don't. Doesn't work very well, is slow
-          and buggy. Especially - slow.
-          var x = element.position().left;
-          var y = element.position().top;
-          var new_x = canvas.position().left + pt.x - element.outerWidth() / 2;
-          var new_y = heading ? (canvas.position().top + pt.y - parseInt(heading.css("font-size")) / 2) : canvas.position().top + pt.y;
-          if (new_x > 0 && new_x + element.outerWidth() < canvas.position().left + canvas.outerWidth()) {
-            x = new_x;
-          } else {
-            x = (new_x < 0) ? canvas.position().left : canvas.position().left + canvas.outerWidth();
-          }
-          if (new_y > 0 && new_y + element.outerHeight() < canvas.position().top + canvas.outerHeight()) {
-            y = new_y;
-          } else {
-            y = (new_y < 0) ? canvas.position().top : canvas.position().top + canvas.outerHeight();
-          }
-*/
-          //@todo needs some tweaking
-          //x = Math.max(0, Math.min(x, canvas_dom.offsetWidth));
-          //y = Math.max(0, Math.min(y, canvas_dom.offsetHeight));
-          element.css({"left": x, "top": y});
-          //node.data.node.element.animate({"top": y, "left": x}, 100);
-        }
-      })
-    },
-  }
-
-  that.resize();
-
-  return that;
+  //renderer.start();
 }
 
 
@@ -347,6 +276,18 @@ $(document).ready(function(){
 
   $("#setting_neighborhood_size").change(function() { neighborhood_size = parseInt($("#setting_neighborhood_size").val()); if (NaN == neighborhood_size) neighborhood_size = DEFAULT_LINKS_LIMIT; });
 
+  $(window).resize(on_window_resize);
+
+
+  function on_window_resize() {
+    canvas_dom.width = $("#main").width();
+    canvas_dom.height = $("#main").height();
+    //@arbor sys.screen({"size": {"width": canvas_dom.width, "height": canvas_dom.height}})
+    renderer.start();
+  }
+
+  canvas = $("#canvas");
+  canvas_dom = canvas.get(0);
 
   $(window).load(function () { 
     $('#search_term').focus(); 
@@ -374,26 +315,65 @@ $(document).ready(function(){
     }
   });
 
-  sys = arbor.ParticleSystem()
-  // @todo twiddle with these. From Arbor doc:
-  // NAME     DEFAULT  INFO
-  // repulsion  1,000  the force repelling nodes from each other
-  // stiffness    600  the rigidity of the edges
-  // friction     0.5  the amount of damping in the system
-  // gravity    false  an additional force attracting nodes to the origin
-  // fps           55  frames per second
-  // dt          0.02  timestep to use for stepping the simulation
-  // precision    0.6  accuracy vs. speed in force calculations
-  //                   (zero is fast but jittery, one is smooth but cpu-intensive)
-  //sys.parameters({friction:0.5, stiffness:100, repulsion:1000, gravity: true, fps: 60, dt: 0.08, precision: 1.0});
-  sys.parameters({stiffness:900, repulsion:1000, gravity: true});
-  sys.renderer = Renderer("#canvas");
+  graph = new Graph();
 
-  // Perhaps I'm an ass, but it seems that Arbor cannot handle just one node in the
-  // graph. At all. If there is first only one element, and another is added later,
-  // Arbor stops updating. <shrug> So a temporary workaround: use invisible dummies.
-  sys.addNode("dummy1", {"title": "dummy1", "fixed": true}); // Reference says that on fixed=true the node is
-  sys.addNode("dummy2", {"title": "dummy2", "fixed": true}); // unaffected by other nodes, but doesn't seem to work.
-//  sys.addEdge("dummy1", "dummy2");
+  var stiffness = 100.0; // 400.0;
+  var repulsion = 400.0;
+  var damping = 0.8; // 0.5;
+  layout = new Layout.ForceDirected(graph, stiffness, repulsion, damping);
 
+  // convert to/from screen coordinates
+  var toScreen = function(p) {
+    var size = layout.getBoundingBox().topright.subtract(layout.getBoundingBox().bottomleft);
+    var sx = p.subtract(layout.getBoundingBox().bottomleft).divide(size.x).x * $("#canvas").get(0).width;
+    var sy = p.subtract(layout.getBoundingBox().bottomleft).divide(size.y).y * $("#canvas").get(0).height;
+    return new Vector(sx, sy);
+  };
+
+  fromScreen = function(s) {
+    var size = layout.getBoundingBox().topright.subtract(layout.getBoundingBox().bottomleft);
+    var px = (s.x / $("#canvas").get(0).width) * size.x + layout.getBoundingBox().bottomleft.x;
+    var py = (s.y / $("#canvas").get(0).height) * size.y + layout.getBoundingBox().bottomleft.y;
+    return new Vector(px, py);
+  };
+
+  renderer = new Renderer(10, layout,
+    function clear() {
+      var ctx = canvas_dom.getContext("2d");
+      ctx.clearRect(0,0,canvas_dom.width,canvas_dom.height);
+    },
+    function drawEdge(edge, p1, p2) {
+      var x1 = toScreen(p1).x;
+      var y1 = toScreen(p1).y;
+      var x2 = toScreen(p2).x;
+      var y2 = toScreen(p2).y;
+
+      var ctx = canvas_dom.getContext("2d");
+      ctx.strokeStyle = "rgba(0,0,0, .333)";
+      ctx.lineWidth = (edge.source.data == focused_node || edge.target.data == focused_node) ? 2 : 1;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      //ctx.lineTo(x2, y2);
+      var cp1x = (x1 + x2) / 2 + 15 * (x2 - x1 < 0 ? -1 : 1);
+      var cp1y = (y1 + y2) / 2 + 15 * (y2 - y1 < 0 ? -1 : 1);
+      ctx.quadraticCurveTo(cp1x, cp1y, x2, y2)
+      ctx.stroke();
+    },
+    function drawNode(node, p) {
+      if (node.data.title) {
+        var x = toScreen(p).x;
+        var y = toScreen(p).y;
+
+        if ("none" == node.data.element.css("display")) node.data.element.css("display", "block"); // Initially was set to none
+        var element = node.data.element;
+        var heading = node.data.element.find("h1");
+        if (!heading) heading = node.data.element.find("h2");
+        var x = canvas.position().left + x - element.outerWidth() / 2;
+        var y = heading ? (canvas.position().top + y - parseInt(heading.css("font-size")) / 2) : canvas.position().top + y;
+        element.css({"left": x, "top": y});
+      }
+    }
+  );
+
+  on_window_resize();
 })

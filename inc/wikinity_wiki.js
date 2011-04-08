@@ -5,7 +5,7 @@
 //
 // @author    Erki Suurjaak
 // @created   03.04.2011
-// @modified  06.04.2011
+// @modified  08.04.2011
 
 // jQuery replaces ? with the created callback function name, this allows for
 // cross-site requests.
@@ -38,7 +38,7 @@ function create_graph_element(node, is_searched) {
   $("<a />").attr({"class": "close", "title": "close"}).text("x").click(function() { remove_node(node); return false; }).appendTo(element);
   $("<a />").attr({"class": "toggle", "title": "toggle visibility"}).text("*").click(function() { node.usercollapsed = !node.collapsed; on_node_mousewheel(null, node.collapsed ? 1 : -100, node); return false; }).appendTo(element);
   var heading = $(node.data.snippet ? "<h1 />" : "<h2 />").html(node.data.title).appendTo(element);
-  element.hover(function() { focused_node = node; if (node.collapsed && !node.usercollapsed) on_node_mousewheel(null, 1, node); }, function() { focused_node = null; if (autohide_contents && node.autocollapsed) on_node_mousewheel(null, -100, node); });
+  element.hover(function() { focused_node = node; if (node.collapsed && !node.usercollapsed) on_node_mousewheel(null, 1, node); renderer.start(); }, function() { focused_node = null; if (autohide_contents && node.autocollapsed) on_node_mousewheel(null, -100, node); renderer.start(); });
   element.mousewheel(function(event, delta) { on_node_mousewheel(event, delta, node); node.usercollapsed = !node.usercollapsed && node.collapsed; node.autocollapsed = node.autocollapsed && node.collapsed && !node.usercollapsed; });
   if (node.data.snippet) {
     // Wrap snippet in <span> as it can contain a flat list of HTML
@@ -183,65 +183,67 @@ function search(term) {
  */
 function get_page(title, depth_to_follow, connected_page) {
   var result = true;
-  if (!nodes[title] || !nodes[title].complete)
-  $.getJSON(WIKI_API_URL,
-    {
-      "action": "parse",
-      "disablepp": "1",
-      "redirects": "1",
-      "section": "0",
-      "format": "json",
-      "page": title,
-    },
-    function(data) {
-        if (data.parse && data.parse.displaytitle) {
+  if (!nodes[title] || !nodes[title].complete) {
+    $.getJSON(WIKI_API_URL,
+      {
+        "action": "parse",
+        "disablepp": "1",
+        "redirects": "1",
+        "section": "0",
+        "format": "json",
+        "page": title,
+      },
+      function(data) {
+          if (data.parse && data.parse.displaytitle) {
 
-          if (data.parse.redirects && (nodes[data.parse.redirects[0].to] && nodes[data.parse.redirects[0].to].complete)) {
-            // The true redirected page already exists here fully.
-            remove_node(nodes[data.parse.redirects[0].from]);
-            return;
-          }
-
-          if (data.parse.displaytitle != title && nodes[title]) {
-            // Page title is different in the article from the link: remove
-            // the old node by this name, as its name can no longer be modified.
-            remove_node(nodes[title]);
-          }
-          var page = {title: $("<span />").html(data.parse.displaytitle).text(), snippet: (data.parse.text)["*"], images: []};
-          for (var i in data.parse.images) {
-            var accept = true;
-            if (".svg" == data.parse.images[i].slice(-4)) { // SVG images are probably wiki icons
-              accept = false;
-            } else if ("Ambox_content.png" == data.parse.images[i]) {
-              accept = false;
+            if (data.parse.redirects && (nodes[data.parse.redirects[0].to] && nodes[data.parse.redirects[0].to].complete)) {
+              // The true redirected page already exists here fully.
+              remove_node(nodes[data.parse.redirects[0].from]);
+              return;
             }
-            if (accept) {
-              page.images.push(data.parse.images[i]);
+
+            if (data.parse.displaytitle != title && nodes[title]) {
+              // Page title is different in the article from the link: remove
+              // the old node by this name, as its name can no longer be modified.
+              remove_node(nodes[title]);
             }
+            var page = {title: $("<span />").html(data.parse.displaytitle).text(), snippet: (data.parse.text)["*"], images: []};
+            for (var i in data.parse.images) {
+              var accept = true;
+              if (".svg" == data.parse.images[i].slice(-4)) { // SVG images are probably wiki icons
+                accept = false;
+              } else if ("Ambox_content.png" == data.parse.images[i]) {
+                accept = false;
+              }
+              if (accept) {
+                page.images.push(data.parse.images[i]);
+              }
+            }
+
+            var node = add_node(page, connected_page);
+
+            depth_to_follow = typeof(depth_to_follow) != 'undefined' ? depth_to_follow : 1;
+            if (depth_to_follow) {
+              node.links_queried = true;
+              get_see_also(page.title, depth_to_follow);
+            }
+
+            if (page.images.length && images_enabled) {
+              get_image(page.images[0], page.title);
+            }
+
+          } else if (nodes[title]) {
+            // Already here, but has no data - missing wikipedia page, mark as such.
+            nodes[title].links_queried = true;
+            nodes[title].element.css({"color": "#AAA", "text-decoration": "line-through"}).find(".wiki").remove();
           }
-
-          var node = add_node(page, connected_page);
-
-          depth_to_follow = typeof(depth_to_follow) != 'undefined' ? depth_to_follow : 1;
-          if (depth_to_follow) {
-            node.links_queried = true;
-            get_see_also(page.title, depth_to_follow);
-          }
-
-          if (page.images.length && images_enabled) {
-            get_image(page.images[0], page.title);
-          }
-
-        } else if (nodes[title]) {
-          // Already here, but has no data - missing wikipedia page, mark as such.
-          nodes[title].links_queried = true;
-          nodes[title].element.css({"color": "#AAA", "text-decoration": "line-through"}).find(".wiki").remove();
-        }
-    }
-  ); else {
+      }
+    ); 
+  } else {
     result = false;
-    if (connected_page) {
-      sys.addEdge(nodes[title].id, nodes[connected_page].id);
+    if (connected_page && !graph.getEdges(nodes[title].vertice, nodes[connected_page].vertice)) {
+      // @todo add check for edge existence
+      graph.newEdge(nodes[title].vertice, nodes[connected_page].vertice);
     }
   }
   return result;
