@@ -1,3 +1,8 @@
+// Wikinity, a visual graph browser for Wikipedia.
+// Copyright (C) 2011, Erki Suurjaak, André Karpištšenko.
+// Wikinity has been published under the GNU Affero General Public License v3.
+// See <http://www.gnu.org/licenses/agpl.html>.
+
 // Functions for querying the Wikipedia directly with in-browser JSON
 // requests, and doing wiki-specific actions.
 //
@@ -5,7 +10,7 @@
 //
 // @author    Erki Suurjaak
 // @created   03.04.2011
-// @modified  08.04.2011
+// @modified  10.04.2011
 
 // jQuery replaces ? with the created callback function name, this allows for
 // cross-site requests.
@@ -19,64 +24,6 @@ const OTHER_NAMESPACES = ["Wikipedia", "WP", "Project", "WT", "Project talk",
 const MAX_IMG_WIDTH = 60;
 const MAX_IMG_HEIGHT = 80;
 
-
-
-/**
- * Creates and returns the jQuery div element for the wiki page.
- *
- * @param   node         the local graph node object
- * @param   is_searched  whether is the result of a search, gets coloured differently
- * @return               the jQuery div object containing the node HTML
- */
-function create_graph_element(node, is_searched) {
-  var element = $("<div />").css("display", "none").appendTo("#results");
-  element.attr("wid", node.id); // Attach wikinity id to the element
-  if (is_searched) {
-    element.addClass("searched_node");
-  }
-  $("<a />").attr({"class": "wiki", "title": "open wiki", "href": "http://en.wikipedia.org/wiki/"+node.data.title}).text("w").appendTo(element);
-  $("<a />").attr({"class": "close", "title": "close"}).text("x").click(function() { remove_node(node); return false; }).appendTo(element);
-  $("<a />").attr({"class": "toggle", "title": "toggle visibility"}).text("*").click(function() { node.usercollapsed = !node.collapsed; on_node_mousewheel(null, node.collapsed ? 1 : -100, node); return false; }).appendTo(element);
-  var heading = $(node.data.snippet ? "<h1 />" : "<h2 />").html(node.data.title).appendTo(element);
-  element.hover(function() { focused_node = node; if (node.collapsed && !node.usercollapsed) on_node_mousewheel(null, 1, node); renderer.start(); }, function() { focused_node = null; if (autohide_contents && node.autocollapsed) on_node_mousewheel(null, -100, node); renderer.start(); });
-  element.mousewheel(function(event, delta) { on_node_mousewheel(event, delta, node); node.usercollapsed = !node.usercollapsed && node.collapsed; node.autocollapsed = node.autocollapsed && node.collapsed && !node.usercollapsed; });
-  if (node.data.snippet) {
-    // Wrap snippet in <span> as it can contain a flat list of HTML
-    var snippet = $("<span />").html(node.data.snippet);
-    // Parse out tables and divs, those tend to not have text content
-    snippet.find("table").empty().remove(); // Emptying first could be faster
-    snippet.find("div").remove();
-    snippet.find("strong.error").remove(); // Wiki error messages
-    snippet.find("span.IPA").remove(); // phonetic alphabet media content
-    snippet.find("img").remove();
-    process_links(snippet, node);
-    var shorter_snippet = $($.trim(snippet.html().substr(0, 1000)));
-    $("<div />").attr("class", "content").css("display", autohide_contents ? "none": "block").append($("<div />").attr("class", "text").append(shorter_snippet)).appendTo(element);
-    node.snippet_element = snippet;
-    node.shorter_snippet_element = shorter_snippet;
-    heading_click_function = function() { if (!node.links_queried) node.links_queried = true; get_see_also(node.data.title, neighborhood_size); };
-  } else {
-    var heading_click_function = function() { if (!node.links_queried) node.links_queried = true; get_page(node.data.title, neighborhood_size); }
-  }
-  element.appendTo("#results");
-  element.draggable({
-    containment: "#canvas",
-    //cursor: "crosshair",
-    start: on_node_dragstart,
-    stop: on_node_dragstop,
-    start: on_node_dragstart,
-    drag: on_node_drag,
-  });
-  heading.click(heading_click_function);
-/*
-trying to add middle click drag, so far nothing..
-  element.mousedown(function(event) { if (2 == event.which) { event.which = 1; element.trigger("mousedown", [event]); } });
-  element.mousemove(function(event) { if (2 == event.which) { event.which = 1; element.trigger("mousemove", [event]); } });
-  element.mouseup(function(event) { if (2 == event.which) { event.which = 1; element.trigger("mouseup", [event]) } });
-*/
-  heading.hover(function() { if (!node.links_queried) heading.css('cursor','pointer'); }, function() { heading.css('cursor','auto'); });
-  return element;
-}
 
 
 /**
@@ -98,13 +45,14 @@ function update_graph_element(node, data) {
     snippet.find("img").remove();
     process_links(snippet, node);
     var shorter_snippet = $($.trim(snippet.html().substr(0, 1000)));
-    $("<div />").attr("class", "content").css("display", autohide_contents ? "none": "block").append($("<div />").attr("class", "text").append(shorter_snippet)).appendTo(element);
+    var content = $("<div />").attr("class", "content").css("display", autohide_contents ? "none": "block").append($("<div />").attr("class", "text").append(shorter_snippet));
+    content.appendTo(element);
     node.snippet_element = snippet;
     node.shorter_snippet_element = shorter_snippet;
-    heading_click_function = function() { if (!node.links_queried) node.links_queried = true; get_see_also(data.title, neighborhood_size); };
+    heading_click_function = function() { log_activity("click_to_expand", {"title": node.data.title}); if (!node.links_queried) node.links_queried = true; get_see_also(data.title, neighborhood_size); };
   } else {
     var heading = element.find("h1:first");
-    heading_click_function = function() { if (!node.links_queried) node.links_queried = true; get_page(data.title, neighborhood_size); }
+    heading_click_function = function() { log_activity("click_to_retrieve", {"title": node.data.title}); if (!node.links_queried) node.links_queried = true; get_page(data.title, neighborhood_size); }
   }
   heading.click(heading_click_function);
   heading.hover(function() { if (!node.links_queried) heading.css('cursor','pointer'); }, function() { heading.css('cursor','auto'); });
@@ -134,8 +82,8 @@ function process_links(element, node) {
       // Click handlers had problems: when swapping node content between snippet and shorter_snippet on resizing,
       // handlers got lost. Don't know why.
       //link.click(function() { if (!link.link_clicked) get_page(new_title, neighborhood_size, node.title); link.link_clicked = true; return false; });
-      // @todo fix this fuckery. And it doesn't work in Opera for some reason :S
-      link.attr({"title": new_title, "onclick": "javascript:get_page('"+new_title.replace(/'/g, "\\'")+"', 0, '"+node.title.replace(/'/g, "\\'")+"'); return false;"});
+      // @todo fix this fuckery.
+      link.attr({"title": new_title, "onclick": "javascript:log_activity('click', {'title': '"+new_title.replace(/'/g, "\\'")+"', 'referrer': '"+node.data.title.replace(/'/g, "\\'")+"'}); get_page('"+new_title.replace(/'/g, "\\'")+"', 0, '"+node.title.replace(/'/g, "\\'")+"'); return false;"});
     } else if ("/w/" == href.slice(0, 3)) {
       // Probably an edit link
       link.attr("href", "http://en.wikipedia.org" + href);
@@ -149,26 +97,52 @@ function process_links(element, node) {
  * it, if multiple found, displays links.
  */
 function search(term) {
+
+  // First, query the page straight
+  // @todo retain the data if one found, so to not make a superfluous query
   $.getJSON(WIKI_API_URL,
     {
-      "action": "opensearch",
+      "action": "query",
+      "redirects": "1",
       "format": "json",
-      "limit": 20,
-      "search": term,
+      "titles": term,
     },
     function(data) {
-      if (data && data.length > 1 && data[1].length > 0) {
-        if (data[1].length == 1 || data[1][0].toLowerCase() == term.toLowerCase()) {
-          get_page(data[1][0], neighborhood_size);
-        } else {
-          $("<p />").text("Multiple matches for '" + term + "':").appendTo('#results');
-          var list = $("<ul />").appendTo('#results');
-          for (var i in data[1]) {
-            list.append($("<li />").append($("<a />").attr("href", "http://en.wikipedia.org/wiki/" + data[1][i].replace(/ /g, "_")).text(data[1][i]).attr("title", data[1][i]).click(function() { get_page(($(this).attr("title")), neighborhood_size); $("#results").empty(); return false; })));
-          }
-        }
+      var title = null;
+      if (data.query && data.query.pages) {
+          $.each(data.query.pages, function(id, page_data) {
+            if (-1 != id) {
+              title = page_data.title;
+            }
+            return false;
+          });
+      }
+      if (title) {
+        get_page(title, neighborhood_size);
       } else {
-        $("<p />").text("No match for '" + term + "'.").appendTo('#results');
+        $.getJSON(WIKI_API_URL,
+          {
+            "action": "opensearch",
+            "format": "json",
+            "limit": 20,
+            "search": term,
+          },
+          function(data) {
+            if (data && data.length > 1 && data[1].length > 0) {
+              if (data[1].length == 1 || data[1][0].toLowerCase() == term.toLowerCase()) {
+                get_page(data[1][0], neighborhood_size);
+              } else {
+                $("<p />").text("Multiple matches for '" + term + "':").appendTo('#results');
+                var list = $("<ul />").appendTo('#results');
+                for (var i in data[1]) {
+                  list.append($("<li />").append($("<a />").attr("href", "http://en.wikipedia.org/wiki/" + data[1][i].replace(/ /g, "_")).text(data[1][i]).attr("title", data[1][i]).click(function() { get_page(($(this).attr("title")), neighborhood_size); $("#results").empty(); return false; })));
+                }
+              }
+            } else {
+              $("<p />").text("No match for '" + term + "'.").appendTo('#results');
+            }
+          }
+        );
       }
     }
   );
@@ -198,14 +172,14 @@ function get_page(title, depth_to_follow, connected_page) {
 
             if (data.parse.redirects && (nodes[data.parse.redirects[0].to] && nodes[data.parse.redirects[0].to].complete)) {
               // The true redirected page already exists here fully.
-              remove_node(nodes[data.parse.redirects[0].from]);
+              remove_node(nodes[data.parse.redirects[0].from], true);
               return;
             }
 
             if (data.parse.displaytitle != title && nodes[title]) {
               // Page title is different in the article from the link: remove
               // the old node by this name, as its name can no longer be modified.
-              remove_node(nodes[title]);
+              remove_node(nodes[title], true);
             }
             var page = {title: $("<span />").html(data.parse.displaytitle).text(), snippet: (data.parse.text)["*"], images: []};
             for (var i in data.parse.images) {
@@ -241,9 +215,8 @@ function get_page(title, depth_to_follow, connected_page) {
     ); 
   } else {
     result = false;
-    if (connected_page && !graph.getEdges(nodes[title].vertice, nodes[connected_page].vertice)) {
-      // @todo add check for edge existence
-      graph.newEdge(nodes[title].vertice, nodes[connected_page].vertice);
+    if (connected_page) {
+      connect_nodes(nodes[title], nodes[connected_page]);
     }
   }
   return result;
@@ -263,23 +236,25 @@ function get_image(image_title, article_title) {
       "titles": "File:" + image_title,
     },
     function(data) {
-      $.each(data.query.pages, function(page_id, page_data) {
-        var image_data = page_data.imageinfo[0];
-        if (image_data.width > MAX_IMG_WIDTH || image_data.height > MAX_IMG_HEIGHT) {
-          var url = image_data.thumburl;
-        } else {
-          var url = image_data.url;
-        }
-        var img = $("<img />").attr({"src": url, "title": image_title}).prependTo(nodes[article_title].element.find("div.content"));
-        if (image_data.width > image_data.height && image_data.width > MAX_IMG_WIDTH) {
-            ratio = MAX_IMG_WIDTH / data.image_data;
-            img.css({"width": MAX_IMG_WIDTH, "height": data.image_data * ratio});
-        } else if (image_data.height > image_data.width && image_data.height > MAX_IMG_HEIGHT) {
-            ratio = 80 / image_data.height;
-            img.css({"width": image_data.width * ratio, "height": MAX_IMG_HEIGHT});
-        }
-        return false; // break foreach
-      });
+      if (nodes[article_title]) { // If image was retrieved later than article closed
+        $.each(data.query.pages, function(page_id, page_data) {
+          var image_data = page_data.imageinfo[0];
+          if (image_data.width > MAX_IMG_WIDTH || image_data.height > MAX_IMG_HEIGHT) {
+            var url = image_data.thumburl;
+          } else {
+            var url = image_data.url;
+          }
+          var img = $("<img />").attr({"src": url, "title": image_title}).prependTo(nodes[article_title].element.find("div.content"));
+          if (image_data.width > image_data.height && image_data.width > MAX_IMG_WIDTH) {
+              ratio = MAX_IMG_WIDTH / data.image_data;
+              img.css({"width": MAX_IMG_WIDTH, "height": data.image_data * ratio});
+          } else if (image_data.height > image_data.width && image_data.height > MAX_IMG_HEIGHT) {
+              ratio = 80 / image_data.height;
+              img.css({"width": image_data.width * ratio, "height": MAX_IMG_HEIGHT});
+          }
+          return false; // break foreach
+        });
+      }
     }
   );
 }

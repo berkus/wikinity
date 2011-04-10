@@ -1,8 +1,8 @@
-<!DOCTYPE html>
 <html>
 <head>
   <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
-  <title>Wikinity 0.2.0</title>
+  <title>Wikinity | browse the neighborhood of Wikipedia articles</title>
+  <meta name="description" content="A website to browse the neighborhood of Wikipedia articles. Hypertexts and hyperlinks are displayed as a visual graph and allow for intuitive web navigation.">
   <script src="inc/jquery-1.5.js"></script>
   <script src="inc/jquery-ui-1.8.11.custom.min.js"></script>
   <script src="inc/jquery.mousewheel-3.0.2.js"></script>
@@ -11,11 +11,27 @@
   <script src="inc/wikinity_wiki.js"></script>
   <link rel="stylesheet" href="inc/wikinity.css" type="text/css" />
   <base target="_blank" />
+<!--
+  <script type="text/javascript">
+    // Google Analytics
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-22477321-3']);
+    _gaq.push(['_trackPageview']);
+    (function() {
+      var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+      ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+      var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+    })();
+  </script>
+-->
 </head>
 <body>
-  <div id="nav">
+
+<div id="wrapper">
+
+  <div id="header">
+    <span id="heading"><b>Wikinity</b> | browse the neighborhood of Wikipedia articles</span>
     <form id="search_form">
-      <span id="heading"><b>Wikinity</b> | browse the neighborhood of Wikipedia articles</span>
       <span id="search_box">
         <input type="text" id="search_term" title="Search for.." />
         <input type="submit" value="go" id="search_button" title="Search the English Wikipedia" />
@@ -23,23 +39,62 @@
         <input type="button" value="settings" id="settings_button" title="Open settings" />
       </span>
       <table id="settings">
-        <tr title="Number of links to get for each page (fallback: 5)" ><td>Links to get:</td><td><input type="text" id="setting_link_limit" value="" /></td></tr>
-        <tr title="How many neighborhood steps to follow for each page (fallback: 1)" ><td>Follow depth:</td><td><input type="text" id="setting_neighborhood_size" value="1" /></td></tr>
-        <tr title="Show images for new browsings?" ><td>Images enabled:</td><td><input type="checkbox" id="setting_images_enabled" value="1" checked="checked" /></td></tr>
-        <tr title="Automatically clear results on new search?" ><td>Autoclear results:</td><td><input type="checkbox" id="setting_autoclear_results" value="1" checked="checked" /></td></tr>
-        <tr title="Hide node contents when mouse not over?" ><td>Autohide contents:</td><td><input type="checkbox" id="setting_autohide_contents" value="1" /></td></tr>
+        <tr title="Number of links to get for each page (fallback: 5)" ><td><label for="setting_link_limit">Links to get:</label></td><td><input type="text" id="setting_link_limit" value="" /></td></tr>
+        <tr title="How many neighborhood steps to follow for each page (fallback: 1)" ><td><label for="setting_neighborhood_size">Follow depth:</label></td><td><input type="text" id="setting_neighborhood_size" value="1" /></td></tr>
+        <tr title="Show images for new browsings?" ><td><label for="setting_images_enabled">Images enabled:</label></td><td><input type="checkbox" id="setting_images_enabled" value="1" checked="checked" /></td></tr>
+        <tr title="Automatically clear results on new search?" ><td><label for="setting_autoclear_results">Autoclear results:</label></td><td><input type="checkbox" id="setting_autoclear_results" value="1" checked="checked" /></td></tr>
+        <tr title="Hide node contents when mouse not over?" ><td><label for="setting_autohide_contents">Autohide contents:</label></td><td><input type="checkbox" id="setting_autohide_contents" value="1" /></td></tr>
       </table>
     </form>
   </div>
 
-  <div id="main">
-    <div id="results"></div>
-    <canvas id="canvas" width="800" height="700"></canvas>
+  <div id="content">
+    <div id="main">
+      <div id="deadpile">
+        <div id="deadpile_scroll">
+          <div id="deadpile_space">
+            <div id="deadpile_content">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="canvasbox">
+        <canvas id="canvas" width="500" height="500"></canvas>
+      </div>
+      <div id="results"></div>
+    </div>
+  </div>
+  <div id="footer">
+    <div id="footer-content">
+      <a title="About Wikinity">About</a>
+<!--
+      <iframe src="http://www.facebook.com/plugins/like.php?http%3A%2F%2Fwww.facebook.com%2FGarage48&amp;layout=standard&amp;show_faces=true&amp;width=450&amp;action=like&amp;colorscheme=light&amp;height=35" scrolling="no" frameborder="0" style="border:none; overflow:hidden; width:450px; height:35px;" allowTransparency="true"></iframe>
+-->
+    </div>
+  </div>
+  <div id="shadow"></div>
+
+  <div id="about">
+     <a id="closeabout" title="Close">close</a>
+     <h1>Wikinity |</h1>
+     <p>An experiment in new ways of browsing Wikipedia.</p>
+     <p>
+       Code: <a href="https://github.com/andre-git/wikinity">GitHub</a><br />
+       People: <a href="http://www.facebook.com/pages/Wikinity/208467052516298">Facebook</a><br />
+       Licence: <a href="http://www.gnu.org/licenses/agpl.html">AGPLv3</a>
+     </p>
+
+     <p>
+       Version 0.2.1.
+     </p>
+     <p>
+       &copy; 2011 Erki Suurjaak, André Karpištšenko.
+     </p>
   </div>
 
-  <div id="credits">
-    Wikinity 0.2.0, 10:15 08.04.2011. Created by Erki Suurjaak, 2011. Uses <a href="http://jquery.com/">jQuery</a> and <a href="https://github.com/dhotson/springy">Springy</a>.
-  </div>
+  <iframe id="usage" src="http://erki.lap.ee/wikinity/log.php" scrolling="no" frameborder="0" style="display: none;"></iframe>
+
+</div>
 
 </body>
 </html>

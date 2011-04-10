@@ -1,3 +1,9 @@
+// Wikinity, a visual graph browser for Wikipedia.
+// Copyright (C) 2011, Erki Suurjaak, Andrï¿½ Karpiï¿½tï¿½enko.
+// Wikinity has been published under the GNU Affero General Public License v3.
+// See <http://www.gnu.org/licenses/agpl.html>.
+
+
 // All page logic. Expects the jQuery and Springy scripts to be included.
 //
 // wikinity_backend or wikinity_wiki must also be included.
@@ -9,7 +15,7 @@
 //
 // @author    Erki Suurjaak
 // @created   02.04.2011
-// @modified  08.04.2011
+// @modified  10.04.2011
 
 // jQuery replaces ? with the created callback function name, this allows for
 // cross-site requests.
@@ -17,20 +23,34 @@ const DEFAULT_LINKS_LIMIT = 5;
 const DEFAULT_NEIGHBORHOOD_SIZE = 1;
 const RESIZE_STEP_WIDTH = 10;
 const RESIZE_STEP_HEIGHT = 20;
+const LOG_URL = "http://erki.lap.ee/wikinity/log.php";
 
-var nodes = {};      // {title: node object, }
-var graph = null;    // Springy Graph instance
-var renderer = null; // Springy Renderer instance
-var canvas = null;   // Canvas instance
+var nodes = {};        // {title: node object }
+var graph = null;      // Springy Graph instance
+var renderer = null;   // Springy Renderer instance
+var canvas = null;     // Canvas instance
 var canvas_dom = null; // Canvas DOM instance
-var layout = null;   // Springy ForceDirected instance
+var ctx = null;        // Canvas 2D context instance
+var layout = null;     // Springy ForceDirected instance
 var focused_node = null; // Currently focused node
+var deadpile = [];     // Nodes closed
+var node_count = 0;
+
+// For cached lookups, seems faster
+var canvasbox_left = null; // $("#canvasbox").position().left;
+var canvasbox_right = null; // $("#canvasbox").position().left + $("#canvasbox").width();
+var canvasbox_top = null; // $("#canvasbox").position().top;
+var canvasbox_bottom = null; // $("#canvasbox").position().top + $("#canvasbox").height();
 
 var limit = DEFAULT_LINKS_LIMIT;
 var images_enabled = true;
 var autoclear_results = true;
 var neighborhood_size = DEFAULT_NEIGHBORHOOD_SIZE;
 var autohide_contents = false;
+var autoclose_startdepth = true;
+var logging_enabled = true;
+
+var session_id = new Date().getTime(); // For usage statistics @todo use
 
 
 /**
@@ -45,17 +65,24 @@ function add_node(data, referring_title) {
   var node = nodes[data.title];
   if (!node) {
     node = {links_queried: false, complete: false, autocollapsed: autohide_contents, usercollapsed: false, collapsed: autohide_contents };
+    node_count++;
     node.id = new Date().getTime();
     node.data = data;
     node.title = data.title;
-    node.element = create_graph_element(node, !referring_title);
+    node.element = create_element(node, !referring_title);
+    node.connections = [];
     nodes[node.title] = node;
     if (data.snippet) {
       node.complete = true;
     }
     node.vertice = graph.newNode(node);
     if (referring_title) {
-      graph.newEdge(node.vertice, nodes[referring_title].vertice);
+/*
+      if (autoclose_startdepth) {
+        autoclose_nodes(nodes[referring_title], autoclose_startdepth, [node]);
+      }
+*/
+      connect_nodes(node, nodes[referring_title]);
     }
     renderer.start();
   } else if (!node.complete) {
@@ -67,23 +94,167 @@ function add_node(data, referring_title) {
 }
 
 
-function remove_node(node) {
-  if (node) {
-    delete nodes[node.title];
-    graph.removeNode(node.vertice);
-    node.element.remove();
+/**
+ * Autocloses nodes that are at or farther than cutoff_distance away
+ * from startnode.
+ *
+ * @param   avoidnodes  nodes to avoid when traversing the neighborhood
+ */
+ /*
+function autoclose_nodes(startnode, cutoff_distance, avoid_nodes) {
+  for (var i in startnode.connections) {
+    if ($.inArray(startnode.connections[i], avoid_nodes) == -1) {
+      for (var j in startnode.connections[i].connections) {
+        if ($.inArray(startnode.connections[i].connections[j], avoid_nodes) == -1) {
+         // remove_node(startnode.connections[i].connections[j]);
+        }
+      }
+    }
+  }
+}
+*/
+
+
+function log_activity(activity, data) {
+  if (logging_enabled) {
+    if (!data) {
+      data = {};
+    }
+    data["activity"] = activity;
+    var url = LOG_URL + "?" + $.param(data);
+    $("#usage").load(url);
   }
 }
 
 
-function clear_results() {
+function remove_node(node, dont_deadpile) {
+  if (node) {
+    delete nodes[node.title];
+    graph.removeNode(node.vertice);
+    node.element.remove();
+    node_count--;
+    var initial_connections = node.connections.slice(0);
+    for (var i in node.connections) {
+      node.connections[i].connections = $.grep(node.connections[i].connections, function(x) { return x != node; });
+      if (!node.connections[i].connections.length && initial_connections.length > 1) {
+        // Only remove connecteds if that node was a leaf, but this
+        // node was a branch.
+        remove_node(node.connections[i], true);
+      }
+    }
+    node.connections = initial_connections;
+
+    if (!dont_deadpile) {
+      deadpile.push(node);
+
+      var item = $("<div />").html(node.title + (initial_connections ? " [" + initial_connections.length + "]" : "")).attr({
+          "title": node.title + (initial_connections ? " [" + initial_connections.length + " connections]" : "") + ". Click to restore."});
+      $("<a />").text("x").click(function() { on_close_deadpile(node); }).attr("title", "Remove '" + node.title + "' from list.").prependTo(item);
+      item.click(function() { on_click_deadpile(node); });
+      node.deadpile_element = item;
+
+      item.appendTo($("#deadpile_content"));
+      $("#deadpile_scroll").animate({scrollTop: $("#deadpile_content").height() - $("#deadpile_scroll").height()}, 100);
+    }
+  }
+}
+
+
+
+
+
+
+/**
+ * Creates a symmetrical connection between the two node objects.
+ */
+function connect_nodes(node1, node2) {
+  if (node1 && node2) {
+    if ($.inArray(node2, node1.connections) == -1) {
+      node1.connections.push(node2);
+    }
+    if ($.inArray(node1, node2.connections) == -1) {
+      node2.connections.push(node1);
+    }
+    var edges1 = graph.getEdges(node1.vertice, node2.vertice);
+    var edges2 = graph.getEdges(node2.vertice, node1.vertice);
+    if (!edges1.length && !edges2.length) {
+      graph.newEdge(node1.vertice, node2.vertice);
+    }
+  }
+}
+
+
+
+function clear_results(clear_deadpile) {
   $("#results").empty();
   for (var title in nodes) {
     nodes[title].element.remove();
   }
   nodes = {};
   graph.filterNodes(function(node) { return false } );
+  if (clear_deadpile) $("#deadpile_content").empty();
+  deadpile = [];
   renderer.start();
+}
+
+
+
+
+/**
+ * Creates and returns the jQuery div element for the node.
+ *
+ * @param   node         the local graph node object
+ * @param   is_searched  whether is the result of a search, gets coloured differently
+ * @return               the jQuery div object containing the node HTML
+ */
+function create_element(node, is_searched) {
+  var element = $("<div />").css("display", "none").appendTo("#results");
+  element.attr("wid", node.id); // Attach wikinity id to the element
+  if (is_searched) {
+    element.addClass("searched_node");
+  }
+  $("<a />").attr({"class": "wiki", "title": "open wiki", "href": "http://en.wikipedia.org/wiki/"+node.data.title}).text("w").appendTo(element);
+  $("<a />").attr({"class": "close", "title": "close"}).text("x").click(function() { remove_node(node); return false; }).appendTo(element);
+  $("<a />").attr({"class": "toggle", "title": "toggle visibility"}).text("*").click(function() { node.usercollapsed = !node.collapsed; on_node_mousewheel(null, node.collapsed ? 1 : -100, node); return false; }).appendTo(element);
+  var heading = $(node.data.snippet ? "<h1 />" : "<h2 />").html(node.data.title).appendTo(element);
+  element.hover(function() { focused_node = node; if (node.collapsed && !node.usercollapsed) on_node_mousewheel(null, 1, node); renderer.start(); }, function() { focused_node = null; if (autohide_contents && node.autocollapsed) on_node_mousewheel(null, -100, node); renderer.start(); });
+  element.mousewheel(function(event, delta) { on_node_mousewheel(event, delta, node); node.usercollapsed = !node.usercollapsed && node.collapsed; node.autocollapsed = node.autocollapsed && node.collapsed && !node.usercollapsed; });
+  if (node.data.snippet) {
+    // Wrap snippet in <span> as it can contain a flat list of HTML
+    var snippet = $("<span />").html(node.data.snippet);
+    // Parse out tables and divs, those tend to not have text content
+    snippet.find("table").empty().remove(); // Emptying first could be faster
+    snippet.find("div").remove();
+    snippet.find("strong.error").remove(); // Wiki error messages
+    snippet.find("span.IPA").remove(); // phonetic alphabet media content
+    snippet.find("img").remove();
+    process_links(snippet, node);
+    var shorter_snippet = $($.trim(snippet.html().substr(0, 1000)));
+    var content = $("<div />").attr("class", "content").css("display", autohide_contents ? "none": "block").append($("<div />").attr("class", "text").append(shorter_snippet));
+    content.appendTo(element);
+    node.snippet_element = snippet;
+    node.shorter_snippet_element = shorter_snippet;
+    heading_click_function = function() { log_activity("click_to_expand", {"title": node.data.title}); if (!node.links_queried) node.links_queried = true; get_see_also(node.data.title, neighborhood_size); };
+  } else {
+    var heading_click_function = function() { log_activity("click_to_retrieve", {"title": node.data.title}); if (!node.links_queried) node.links_queried = true; get_page(node.data.title, neighborhood_size); }
+  }
+  element.appendTo("#results");
+  element.draggable({
+    containment: "#main",
+    //cursor: "crosshair",
+    start: on_node_dragstart,
+    stop: on_node_dragstop,
+    drag: on_node_drag,
+  });
+  heading.click(heading_click_function);
+/*
+trying to add middle click drag, so far nothing..
+  element.mousedown(function(event) { if (2 == event.which) { event.which = 1; element.trigger("mousedown", [event]); } });
+  element.mousemove(function(event) { if (2 == event.which) { event.which = 1; element.trigger("mousemove", [event]); } });
+  element.mouseup(function(event) { if (2 == event.which) { event.which = 1; element.trigger("mouseup", [event]) } });
+*/
+  heading.hover(function() { if (!node.links_queried) heading.css('cursor','pointer'); }, function() { heading.css('cursor','auto'); });
+  return element;
 }
 
 
@@ -116,6 +287,33 @@ function get_node(element) {
     if (nodes[title].id == wid)
       return nodes[title];
   }
+}
+
+
+function on_click_deadpile(node) {
+  node.deadpile_element.remove();
+  deadpile = $.grep(deadpile, function(x) { return x != node; });
+
+  node.element = create_element(node); // @todo pane juurde hoidma kusagil searchimist
+  node.vertice = graph.newNode(node);
+  nodes[node.title] = node;
+  for (var i in node.connections) {
+    if (!nodes[node.connections[i].title]) {
+      node.connections[i].element = create_element(node.connections[i]); // @todo pane juurde hoidma kusagil searchimist
+      node.connections[i].vertice = graph.newNode(node.connections[i]);
+      nodes[node.connections[i].title] = node.connections[i];
+    }
+    connect_nodes(node, node.connections[i]);
+  }
+
+  renderer.start();
+}
+
+
+function on_close_deadpile(node) {
+  node.deadpile_element.remove();
+  deadpile = $.grep(deadpile, function(x) { return x != node; });
+  // @todo ühendatud nodede eemaldamine, kui neid oli
 }
 
 
@@ -206,6 +404,7 @@ function on_node_dragstart(event, ui) {
 
 
 function on_node_dragstop(event, ui) { 
+  dragged.point.m = 1.0;
   dragged = null;
 }
 
@@ -217,13 +416,14 @@ function on_node_drag(event, ui) {
   if (!heading) heading = element.find("h2");
   var element_left = element.position().left;
   var element_top = element.position().top;
-  var x = element_left - canvas.position().left + element.outerWidth() / 2;
-  var y = element_top - canvas.position().top + (heading ? parseInt(heading.css("font-size"))/2 : 0);
+  var x = element_left - canvasbox_left;
+  var y = element_top - canvasbox_top + 7;
 
   var p = fromScreen({x: x, y: y});
 
   dragged.point.p.x = p.x;
   dragged.point.p.y = p.y;
+  dragged.point.m = 10000.0;
 
   //renderer.start();
 }
@@ -249,10 +449,11 @@ $(document).ready(function(){
 
   $("#search_form").submit(
     function(){
-      term = $.trim($("#search_term").val());
+      var term = $.trim($("#search_term").val());
       if (term) { 
         if (autoclear_results) clear_results();
         search(term);
+        log_activity("search", {"term": term}); 
       }
       return false;
     }
@@ -262,32 +463,88 @@ $(document).ready(function(){
 
   $("#setting_neighborhood_size").val(DEFAULT_NEIGHBORHOOD_SIZE);
 
-  $("#clear_button").click(clear_results);
+  $("#clear_button").click(function() {
+    clear_results(true);
+    log_activity("button_clear");
+  });
 
-  $("#settings_button").click(open_settings);
+  $("#settings_button").click(function() {
+    open_settings();
+    log_activity("button_settings");
+  });
 
-  $("#setting_images_enabled").click(function() { images_enabled = $("#setting_images_enabled").is(":checked"); });
+  $("#footer").find("a").click(function() {
+    $("#shadow").css({"display": "block"});
+    $("#about").css({"display": "block"});
+  });
 
-  $("#setting_autoclear_results").click(function() { autoclear_results = $("#setting_autoclear_results").is(":checked"); });
+  $("#shadow").click(function() {
+    $("#about").css({"display": "none"});
+    $("#shadow").css({"display": "none"});
+  });
 
-  $("#setting_autohide_contents").click(function() { autohide_contents = $("#setting_autohide_contents").is(":checked"); for (var title in nodes) { nodes[title].autocollapsed = autohide_contents; if (!nodes[title].usercollapsed) on_node_mousewheel(null, autohide_contents ? -100 : 1, nodes[title]); } });
+  $("#closeabout").click(function() {
+    $("#about").css({"display": "none"});
+    $("#shadow").css({"display": "none"});
+  });
 
-  $("#setting_link_limit").change(function() { limit = parseInt($("#setting_link_limit").val()); if (NaN == limit) limit = DEFAULT_LINKS_LIMIT; });
+  $("#setting_images_enabled").click(function() { 
+    images_enabled = $("#setting_images_enabled").is(":checked");
+    log_activity("setting", {"images_enabled": images_enabled});
+  });
 
-  $("#setting_neighborhood_size").change(function() { neighborhood_size = parseInt($("#setting_neighborhood_size").val()); if (NaN == neighborhood_size) neighborhood_size = DEFAULT_LINKS_LIMIT; });
+  $("#setting_autoclear_results").click(function() {
+    autoclear_results = $("#setting_autoclear_results").is(":checked");
+    log_activity("setting", {"autoclear_results": autoclear_results});
+  });
+
+  $("#setting_autohide_contents").click(function() {
+    autohide_contents = $("#setting_autohide_contents").is(":checked");
+    for (var title in nodes) { 
+      nodes[title].autocollapsed = autohide_contents; 
+      if (!nodes[title].usercollapsed)
+        on_node_mousewheel(null, autohide_contents ? -100 : 1, nodes[title]);
+    }
+    log_activity("setting", {"autohide_contents": autohide_contents});
+  });
+
+  $("#setting_link_limit").change(function() {
+    limit = parseInt($("#setting_link_limit").val());
+    log_activity("setting", {"limit": limit});
+    if (NaN == limit) limit = DEFAULT_LINKS_LIMIT; 
+  });
+
+  $("#setting_neighborhood_size").change(function() {
+    neighborhood_size = parseInt($("#setting_neighborhood_size").val());
+    log_activity("setting", {"neighborhood_size": neighborhood_size});
+    if (NaN == neighborhood_size) neighborhood_size = DEFAULT_LINKS_LIMIT;
+  });
 
   $(window).resize(on_window_resize);
 
 
   function on_window_resize() {
-    canvas_dom.width = $("#main").width();
-    canvas_dom.height = $("#main").height();
-    //@arbor sys.screen({"size": {"width": canvas_dom.width, "height": canvas_dom.height}})
+    $("#about").css({
+      left: 0,
+      top: 0,
+    });
+    canvas_dom.width = $("#main").width() - 200;
+    canvas_dom.height = $("#main").height() - 100;
+    var canvasbox = $("#canvasbox");
+    canvasbox_left = canvasbox.position().left;
+    canvasbox_right = canvasbox.position().left + canvasbox.width();
+    canvasbox_top = canvasbox.position().top;
+    canvasbox_bottom = canvasbox.position().top + canvasbox.height();
     renderer.start();
+    $("#about").css({
+      left: $('#wrapper').position().left + $('#wrapper').outerWidth()/2 - $("#about").outerWidth()/2,
+      top: $('#wrapper').position().top + $('#wrapper').outerHeight()/2 - $("#about").outerHeight()/2,
+    });
   }
 
   canvas = $("#canvas");
   canvas_dom = canvas.get(0);
+  ctx = canvas_dom.getContext("2d");
 
   $(window).load(function () { 
     $('#search_term').focus(); 
@@ -339,7 +596,6 @@ $(document).ready(function(){
 
   renderer = new Renderer(10, layout,
     function clear() {
-      var ctx = canvas_dom.getContext("2d");
       ctx.clearRect(0,0,canvas_dom.width,canvas_dom.height);
     },
     function drawEdge(edge, p1, p2) {
@@ -348,7 +604,8 @@ $(document).ready(function(){
       var x2 = toScreen(p2).x;
       var y2 = toScreen(p2).y;
 
-      var ctx = canvas_dom.getContext("2d");
+      if ("none" == edge.source.data.element.css("display")) edge.source.data.element.css("display", "block"); // Initially was set to none
+      if ("none" == edge.target.data.element.css("display")) edge.target.data.element.css("display", "block"); // Initially was set to none
       ctx.strokeStyle = "rgba(0,0,0, .333)";
       ctx.lineWidth = (edge.source.data == focused_node || edge.target.data == focused_node) ? 2 : 1;
       ctx.beginPath();
@@ -364,16 +621,30 @@ $(document).ready(function(){
         var x = toScreen(p).x;
         var y = toScreen(p).y;
 
-        if ("none" == node.data.element.css("display")) node.data.element.css("display", "block"); // Initially was set to none
         var element = node.data.element;
         var heading = node.data.element.find("h1");
         if (!heading) heading = node.data.element.find("h2");
-        var x = canvas.position().left + x - element.outerWidth() / 2;
-        var y = heading ? (canvas.position().top + y - parseInt(heading.css("font-size")) / 2) : canvas.position().top + y;
-        element.css({"left": x, "top": y});
+        var height = element.outerHeight();
+        var new_x = canvasbox_left + x - 100;
+        var new_y = heading ? (canvasbox_top + y - 7) : canvasbox_top + y;
+        if (new_y + height > canvasbox_bottom) {
+          new_y = canvasbox_bottom - height + 7;
+        }
+        element.css({"left": new_x, "top": new_y});
+        if ("none" == node.data.element.css("display")) node.data.element.css("display", "block"); // Initially was set to none
       }
     }
   );
+
+  $("#deadpile_scroll").mousewheel(function(event, delta) {
+    if (delta > 0 || $("#deadpile_scroll").attr("scrollTop") + $("#deadpile").height() < $("#deadpile_content").height()) {
+      var new_place = $("#deadpile_scroll").attr("scrollTop") - delta * 21;
+//      if (scroll_left > $("#deadpile_scroll").attr("scrollTop") + $("#deadpile_scroll").width()) {
+//        scroll_left = $("#deadpile_content").width();
+//      }
+      $("#deadpile_scroll").attr({scrollTop: new_place});
+    }
+  });
 
   on_window_resize();
 })
