@@ -1,18 +1,49 @@
-Final aim is to create a program that uses something like Flare/Prefuse to draw
-a nice bubbly interface for wiki pages. So when I search for "wumpus", it gives
-the "Hunt the Wumpus" page as the first, major, bubble, with a snippet of the
-introductory text and perhaps a thumbnail of the first picture in the article.
-This bubble shall be connected to other bubbles which pop into existence around
-it, as the page gets parsed - links to other articles appear, and there shall be
-links to different colour bubbles representing page categories
-(1972 video games | Mainframe games | DOS games | TI-99/4A games | 
-History of video games | Video games with textual graphics). Clicking on any
-bubble will first make it bigger, showing more text, and it's possible to open
-the full article in a separate window.
-Key factor in the program must be a smooth flow of the visuals.
+Wikinity
+--------
 
-Key idea of the program: to see links between articles. Would be awesome if
-it were possible to zoom out from one article, so that a larger network of
-interconnected articles gets displayed.
+Wikinity is an experiment in new way of browsing Wikipedia. The final aim is to
+create a solution that allows for easy navigation of web content.
 
-Erki Suurjaak, 30.03.2011
+The initial solution visualizes a wiki article as a graph node with links to
+other articles. The choice of links depends on the content of articles, e.g.
+links in "See also", "Categories" and first paragraphs are chosen.
+
+With Wikinity you can navigate the articles graph by clicking on nodes or links
+within the text of the nodes. It is also possible to collapse, close and reopen
+nodes.
+
+
+Data
+----
+Anonymous clickstream is collected from the website to understand the ways the
+application gets used. The data is used only for improvements and will not be
+sold. It is possible for anyone to disable collection from UI settings.
+
+
+Further Improvements
+--------------------
+Immediate improvements will focus on incremental improvements of existing
+navigation solution. From usability point of view a cruicial part is the layout
+engine that currently makes it hard to conduct actions with nodes while the graph
+is stabilizing. For a list of concrete improvement ideas, please see GitHub.
+
+Long-term, implementing zooming on the entire article graph should give awesome
+possibilities for exploring Wikipedia. Especially with 3D. Additionally the link
+selection algorithm could benefit from text mining, network and clickstream analysis.
+
+
+Acknowledgements
+----------------
+ * Special kudos go to Silver, Allan, Ando, Taavi for their ideas on navigating
+   the invisible.
+ * The implementation is based on jQuery and Springy JavaScript libraries.
+ * Katy Börner's book "Atlas of Science" triggered a lot of ideas, some of which
+   are implemented in Wikinity.
+
+
+Copyright (C) 2011 by 
+Erki Suurjaak <erki@lap.ee>
+Andre Karpistsenko <andre@lap.ee>
+Distributed with AGPLv3 license.
+All rights reserved, see LICENSE for details.
+
