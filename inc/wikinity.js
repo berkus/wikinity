@@ -15,7 +15,7 @@
 //
 // @author    Erki Suurjaak
 // @created   02.04.2011
-// @modified  10.04.2011
+// @modified  11.04.2011
 
 // jQuery replaces ? with the created callback function name, this allows for
 // cross-site requests.
@@ -25,16 +25,16 @@ const RESIZE_STEP_WIDTH = 10;
 const RESIZE_STEP_HEIGHT = 20;
 const LOG_URL = "http://erki.lap.ee/wikinity/log.php";
 
-var nodes = {};        // {title: node object }
-var graph = null;      // Springy Graph instance
-var renderer = null;   // Springy Renderer instance
-var canvas = null;     // Canvas instance
-var canvas_dom = null; // Canvas DOM instance
-var ctx = null;        // Canvas 2D context instance
-var layout = null;     // Springy ForceDirected instance
-var focused_node = null; // Currently focused node
-var deadpile = [];     // Nodes closed
-var node_count = 0;
+var nodes = {};            // {title: node object }
+var graph = null;          // Springy Graph instance
+var renderer = null;       // Springy Renderer instance
+var canvas = null;         // Canvas instance
+var canvas_dom = null;     // Canvas DOM instance
+var ctx = null;            // Canvas 2D context instance
+var layout = null;         // Springy ForceDirected instance
+var focused_node = null;   // Currently focused node
+var deadpile = [];         // Nodes closed
+var dragged_point = null;  // Springy Point of the dragged node
 
 // For cached lookups, seems faster
 var canvasbox_left = null; // $("#canvasbox").position().left;
@@ -65,7 +65,6 @@ function add_node(data, referring_title) {
   var node = nodes[data.title];
   if (!node) {
     node = {links_queried: false, complete: false, autocollapsed: autohide_contents, usercollapsed: false, collapsed: autohide_contents };
-    node_count++;
     node.id = new Date().getTime();
     node.data = data;
     node.title = data.title;
@@ -132,7 +131,6 @@ function remove_node(node, dont_deadpile) {
     delete nodes[node.title];
     graph.removeNode(node.vertice);
     node.element.remove();
-    node_count--;
     var initial_connections = node.connections.slice(0);
     for (var i in node.connections) {
       node.connections[i].connections = $.grep(node.connections[i].connections, function(x) { return x != node; });
@@ -388,44 +386,56 @@ function on_node_mousewheel(event, delta, node) {
 }
 
 
-var dragged = null;
-
 function on_node_dragstart(event, ui) {
   var element = $(this);
-  var element_left = element.position().left;
-  var element_top = element.position().top;
-  var p = fromScreen({x: element_left - canvas.position().left, y: element_top - canvas.position().top});
-  dragged = layout.nearest(p);
+  var node = get_node(element);
+  dragged_point = layout.nodePoints[node.vertice.id];
 
-  dragged.point.m = 10000.0;
+  dragged_point.m = 10000.0;
 
   renderer.start();
 };
 
 
 function on_node_dragstop(event, ui) { 
-  dragged.point.m = 1.0;
-  dragged = null;
+  dragged_point.m = 1.0;
+  dragged_point = null;
 }
 
 
 function on_node_drag(event, ui) {
   var element = $(this);
   var node = get_node(element);
-  var heading = element.find("h1");
-  if (!heading) heading = element.find("h2");
   var element_left = element.position().left;
   var element_top = element.position().top;
-  var x = element_left - canvasbox_left;
+  var x = element_left - canvasbox_left + 100;
   var y = element_top - canvasbox_top + 7;
 
   var p = fromScreen({x: x, y: y});
 
-  dragged.point.p.x = p.x;
-  dragged.point.p.y = p.y;
-  dragged.point.m = 10000.0;
+  dragged_point.p.x = p.x;
+  dragged_point.p.y = p.y;
+}
 
-  //renderer.start();
+
+
+function on_window_resize() {
+  $("#about").css({
+    left: 0,
+    top: 0,
+  });
+  canvas_dom.width = $("#main").width() - 200;
+  canvas_dom.height = $("#main").height() - 100;
+  var canvasbox = $("#canvasbox");
+  canvasbox_left = canvasbox.position().left;
+  canvasbox_right = canvasbox.position().left + canvasbox.width();
+  canvasbox_top = canvasbox.position().top;
+  canvasbox_bottom = canvasbox.position().top + canvasbox.height();
+  renderer.start();
+  $("#about").css({
+    left: $('#wrapper').position().left + $('#wrapper').outerWidth()/2 - $("#about").outerWidth()/2,
+    top: $('#wrapper').position().top + $('#wrapper').outerHeight()/2 - $("#about").outerHeight()/2,
+  });
 }
 
 
@@ -520,27 +530,13 @@ $(document).ready(function(){
     if (NaN == neighborhood_size) neighborhood_size = DEFAULT_LINKS_LIMIT;
   });
 
+  $("#deadpile_scroll").mousewheel(function(event, delta) {
+    if (delta > 0 || $("#deadpile_scroll").attr("scrollTop") + $("#deadpile").height() < $("#deadpile_content").height()) {
+      $("#deadpile_scroll").attr({scrollTop: $("#deadpile_scroll").attr("scrollTop") - delta * 21});
+    }
+  });
+
   $(window).resize(on_window_resize);
-
-
-  function on_window_resize() {
-    $("#about").css({
-      left: 0,
-      top: 0,
-    });
-    canvas_dom.width = $("#main").width() - 200;
-    canvas_dom.height = $("#main").height() - 100;
-    var canvasbox = $("#canvasbox");
-    canvasbox_left = canvasbox.position().left;
-    canvasbox_right = canvasbox.position().left + canvasbox.width();
-    canvasbox_top = canvasbox.position().top;
-    canvasbox_bottom = canvasbox.position().top + canvasbox.height();
-    renderer.start();
-    $("#about").css({
-      left: $('#wrapper').position().left + $('#wrapper').outerWidth()/2 - $("#about").outerWidth()/2,
-      top: $('#wrapper').position().top + $('#wrapper').outerHeight()/2 - $("#about").outerHeight()/2,
-    });
-  }
 
   canvas = $("#canvas");
   canvas_dom = canvas.get(0);
@@ -635,16 +631,6 @@ $(document).ready(function(){
       }
     }
   );
-
-  $("#deadpile_scroll").mousewheel(function(event, delta) {
-    if (delta > 0 || $("#deadpile_scroll").attr("scrollTop") + $("#deadpile").height() < $("#deadpile_content").height()) {
-      var new_place = $("#deadpile_scroll").attr("scrollTop") - delta * 21;
-//      if (scroll_left > $("#deadpile_scroll").attr("scrollTop") + $("#deadpile_scroll").width()) {
-//        scroll_left = $("#deadpile_content").width();
-//      }
-      $("#deadpile_scroll").attr({scrollTop: new_place});
-    }
-  });
 
   on_window_resize();
 })
