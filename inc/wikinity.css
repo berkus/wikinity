@@ -252,7 +252,7 @@ input[type=button], input[type=submit] {
   width: 100px;
   height: 100%;
   position: relative;
-  left: 0px;
+  left: 1px;
   top: 0px;
   color: white;
 }

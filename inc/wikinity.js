@@ -215,7 +215,7 @@ function create_element(node, is_searched) {
   $("<a />").attr({"class": "close", "title": "close"}).text("x").click(function() { remove_node(node); return false; }).appendTo(element);
   $("<a />").attr({"class": "toggle", "title": "toggle visibility"}).text("*").click(function() { node.usercollapsed = !node.collapsed; on_node_mousewheel(null, node.collapsed ? 1 : -100, node); return false; }).appendTo(element);
   var heading = $(node.data.snippet ? "<h1 />" : "<h2 />").html(node.data.title).appendTo(element);
-  element.hover(function() { focused_node = node; if (node.collapsed && !node.usercollapsed) on_node_mousewheel(null, 1, node); renderer.start(); }, function() { focused_node = null; if (autohide_contents && node.autocollapsed) on_node_mousewheel(null, -100, node); renderer.start(); });
+  element.hover(function() { focused_node = node; if (node.collapsed && !node.usercollapsed) on_node_mousewheel(null, 1, node); }, function() { focused_node = null; if (autohide_contents && node.autocollapsed) on_node_mousewheel(null, -100, node); });
   element.mousewheel(function(event, delta) { on_node_mousewheel(event, delta, node); node.usercollapsed = !node.usercollapsed && node.collapsed; node.autocollapsed = node.autocollapsed && node.collapsed && !node.usercollapsed; });
   if (node.data.snippet) {
     // Wrap snippet in <span> as it can contain a flat list of HTML
@@ -602,6 +602,18 @@ $(document).ready(function(){
 
       if ("none" == edge.source.data.element.css("display")) edge.source.data.element.css("display", "block"); // Initially was set to none
       if ("none" == edge.target.data.element.css("display")) edge.target.data.element.css("display", "block"); // Initially was set to none
+      if (focused_node == edge.source.data) {
+        var element_left = edge.source.data.element.position().left;
+        var element_top = edge.source.data.element.position().top;
+        var x1 = element_left - canvasbox_left + 100;
+        var y1 = element_top - canvasbox_top + 7;
+      } else if (focused_node == edge.target.data) {
+        var element_left = edge.target.data.element.position().left;
+        var element_top = edge.target.data.element.position().top;
+        var x2 = element_left - canvasbox_left + 100;
+        var y2 = element_top - canvasbox_top + 7;
+      }
+
       ctx.strokeStyle = "rgba(0,0,0, .333)";
       ctx.lineWidth = (edge.source.data == focused_node || edge.target.data == focused_node) ? 2 : 1;
       ctx.beginPath();
@@ -612,14 +624,14 @@ $(document).ready(function(){
       ctx.quadraticCurveTo(cp1x, cp1y, x2, y2)
       ctx.stroke();
     },
-    function drawNode(node, p) {
-      if (node.data.title) {
+    function drawNode(vertice, p) {
+      if (vertice.data.title && vertice.data != focused_node) {
         var x = toScreen(p).x;
         var y = toScreen(p).y;
 
-        var element = node.data.element;
-        var heading = node.data.element.find("h1");
-        if (!heading) heading = node.data.element.find("h2");
+        var element = vertice.data.element;
+        var heading = vertice.data.element.find("h1");
+        if (!heading) heading = vertice.data.element.find("h2");
         var height = element.outerHeight();
         var new_x = canvasbox_left + x - 100;
         var new_y = heading ? (canvasbox_top + y - 7) : canvasbox_top + y;
@@ -627,7 +639,7 @@ $(document).ready(function(){
           new_y = canvasbox_bottom - height + 7;
         }
         element.css({"left": new_x, "top": new_y});
-        if ("none" == node.data.element.css("display")) node.data.element.css("display", "block"); // Initially was set to none
+        if ("none" == vertice.data.element.css("display")) vertice.data.element.css("display", "block"); // Initially was set to none
       }
     }
   );
