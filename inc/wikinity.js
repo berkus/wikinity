@@ -287,7 +287,7 @@ trying to add middle click drag, so far nothing..
   element.mousemove(function(event) { if (2 == event.which) { event.which = 1; element.trigger("mousemove", [event]); } });
   element.mouseup(function(event) { if (2 == event.which) { event.which = 1; element.trigger("mouseup", [event]) } });
 */
-  heading.hover(function() { if (!node.links_queried) heading.css('cursor','pointer'); }, function() { heading.css('cursor','auto'); });
+  heading.hover(function() { heading.css('cursor','pointer'); }, function() { heading.css('cursor','auto'); });
   return element;
 }
 

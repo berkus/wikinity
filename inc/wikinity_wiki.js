@@ -10,7 +10,7 @@
 //
 // @author    Erki Suurjaak
 // @created   03.04.2011
-// @modified  10.04.2011
+// @modified  11.04.2011
 
 const WIKI_BASE_URL = "http://en.wikipedia.org";
 // jQuery replaces ? with the created callback function name, this allows for
