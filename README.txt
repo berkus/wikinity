@@ -1,27 +1,28 @@
 Wikinity
 --------
 
-Wikinity is an experiment in a new way of browsing Wikipedia. The final aim is
-to create a solution that allows for easy navigation of web content.
+Wikinity is an experimental visual tool for exploring Wikipedia articles as
+connected nodes on a graphical map.
 
-The initial solution visualizes a wiki article as a graph node with links to
-other articles. The choice of links is relatively arbitrary at the moment and
-depends heavily on the article content.
+The initial solution allows to search Wikipedia for any article and
+visualizes the article as a node on a graph, with links to other articles. Nodes
+have text from the first section of the Wikipedia article, and a thumbnail of
+the first image. Links can be clicked to open a new connected node on the graph,
+nodes can be closed and reopened.
 
-With Wikinity you can navigate the articles graph by clicking on nodes or links
-within the text of the nodes. It is also possible to collapse, close and reopen
-nodes.
+The choice of automatically opened connections is relatively arbitrary at the
+moment and depends heavily on the article content.
 
-It's possible to share wikinity links that will autoload a specific search with
-detailed parameters:
-
-http://wikinity.cc/#limit=1&depth=5&term=Wikipedia
+It's possible to share wikinity links that will autoload a specific search:
+http://wikinity.cc/#term=Wikipedia
+or with detailed parameters:
+http://wikinity.cc/#limit=1&depth=5&images=1&autohide=0&autoclear=1&clickstream=1&term=Wikipedia
 
 
 Browsers
 ========
 Wikinity has not been developed to be browser independent, the idea was to see
-what can be done in modern browsers.
+what can be done at all.
 
 Currently supports:
 * Firefox 3.6
@@ -59,6 +60,9 @@ give awesome possibilities for exploring Wikipedia. Especially with a 3D model.
 In addition, the link selection algorithm might benefit from using text mining,
 and network+clickstream analysis.
 
+A tentative idea for a possible final aim: creating a solution that allows for
+easy visual navigation of any web content.
+
 
 Data
 ----
@@ -69,8 +73,8 @@ can be disabled from UI settings.
 
 Acknowledgements
 ----------------
- * Special kudos go to Silver, Allan, Ando, Taavi for their ideas on navigating
-   the invisible.
+ * Special kudos go to Silver, Allan, Ando, and Taavi for their ideas on
+   navigating the invisible.
  * Katy Börner's book "Atlas of Science" triggered a lot of ideas, some of which
    are implemented in Wikinity.
 
