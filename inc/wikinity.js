@@ -1,16 +1,14 @@
 // Wikinity, a visual graph browser for Wikipedia.
-// Copyright (C) 2011, Erki Suurjaak, Andrï¿½ Karpiï¿½tï¿½enko.
+// Copyright (C) 2011, Erki Suurjaak, Andre Karpistsenko.
 // Wikinity has been published under the GNU Affero General Public License v3.
 // See <http://www.gnu.org/licenses/agpl.html>.
 
-
 // All page logic. Expects the jQuery and Springy scripts to be included.
-//
-// wikinity_backend or wikinity_wiki must also be included.
+// wikinity_wiki must also be included.
 //
 // To avoid confusion between the jQuery and Springy and Wikinity nodes:
-// - node is a Wikinity node
-// - element is a jQuery node
+// - node is a Wikinity node object
+// - element is a jQuery div element containing node data
 // - vertice is an Springy node
 //
 // @author    Erki Suurjaak
@@ -23,7 +21,7 @@ const DEFAULT_LINKS_LIMIT = 5;
 const DEFAULT_NEIGHBORHOOD_SIZE = 1;
 const RESIZE_STEP_WIDTH = 10;
 const RESIZE_STEP_HEIGHT = 20;
-const LOG_URL = "http://erki.lap.ee/wikinity/log.php";
+const LOG_URL = "log.php";
 
 var nodes = {};            // {title: node object }
 var graph = null;          // Springy Graph instance
@@ -48,7 +46,7 @@ var autoclear_results = true;
 var neighborhood_size = DEFAULT_NEIGHBORHOOD_SIZE;
 var autohide_contents = false;
 var autoclose_startdepth = true;
-var logging_enabled = true;
+var clickstream_enabled = true;
 
 var session_id = new Date().getTime(); // For usage statistics @todo use
 
@@ -70,6 +68,7 @@ function add_node(data, referring_title) {
     node.title = data.title;
     node.element = create_element(node, !referring_title);
     node.connections = [];
+    node.all_connections = [];
     nodes[node.title] = node;
     if (data.snippet) {
       node.complete = true;
@@ -85,7 +84,7 @@ function add_node(data, referring_title) {
     }
     renderer.start();
   } else if (!node.complete) {
-    update_graph_element(node, data);
+    update_element(node, data);
     node.data = data;
     node.complete = true;
   }
@@ -114,8 +113,8 @@ function autoclose_nodes(startnode, cutoff_distance, avoid_nodes) {
 */
 
 
-function log_activity(activity, data) {
-  if (logging_enabled) {
+function log_activity(activity, data, force) {
+  if (clickstream_enabled || force) {
     if (!data) {
       data = {};
     }
@@ -131,24 +130,25 @@ function remove_node(node, dont_deadpile) {
     delete nodes[node.title];
     graph.removeNode(node.vertice);
     node.element.remove();
-    var initial_connections = node.connections.slice(0);
+    var connections_initially = node.connections.slice(0);
     for (var i in node.connections) {
       node.connections[i].connections = $.grep(node.connections[i].connections, function(x) { return x != node; });
-      if (!node.connections[i].connections.length && initial_connections.length > 1) {
+      if (!node.connections[i].connections.length && connections_initially.length > 1) {
         // Only remove connecteds if that node was a leaf, but this
         // node was a branch.
         remove_node(node.connections[i], true);
       }
     }
-    node.connections = initial_connections;
+    // Restore connections only to hub nodes
+    node.connections = connections_initially.length != 1 ? connections_initially : [];
 
     if (!dont_deadpile) {
       deadpile.push(node);
 
-      var item = $("<div />").html(node.title + (initial_connections ? " [" + initial_connections.length + "]" : "")).attr({
-          "title": node.title + (initial_connections ? " [" + initial_connections.length + " connections]" : "") + ". Click to restore."});
-      $("<a />").text("x").click(function() { on_close_deadpile(node); }).attr("title", "Remove '" + node.title + "' from list.").prependTo(item);
-      item.click(function() { on_click_deadpile(node); });
+      var item = $("<div />").html(node.title + (node.connections.length ? " [" + node.connections.length + "]" : "")).attr({
+          "title": node.title + (node.connections.length ? " [" + node.connections.length + " connections]" : "") + ". Click to restore."});
+      $("<a />").text("x").click(function() { remove_from_deadpile(node); }).attr("title", "Remove '" + node.title + "' from list.").prependTo(item);
+      item.click(function() { restore_from_deadpile(node); });
       node.deadpile_element = item;
 
       item.appendTo($("#deadpile_content"));
@@ -158,8 +158,40 @@ function remove_node(node, dont_deadpile) {
 }
 
 
+function restore_from_deadpile(node) {
+  node.deadpile_element.remove();
+  deadpile = $.grep(deadpile, function(x) { return x != node; });
+
+  if (!nodes[node.title]) {
+    node.element = create_element(node); // @todo pane juurde hoidma kusagil searchimist
+    node.vertice = graph.newNode(node);
+    nodes[node.title] = node;
+  } else {
+    node = nodes[node.title];
+  }
+  for (var i in node.all_connections) {
+    if (nodes[node.all_connections[i].title]) {
+      connect_nodes(node, node.all_connections[i]);
+    }
+  }
+  for (var i in node.connections) {
+    if (!nodes[node.connections[i].title]) {
+      node.connections[i].element = create_element(node.connections[i]); // @todo pane juurde hoidma kusagil searchimist
+      node.connections[i].vertice = graph.newNode(node.connections[i]);
+      nodes[node.connections[i].title] = node.connections[i];
+    }
+    connect_nodes(node, node.connections[i]);
+  }
+
+  renderer.start();
+}
 
 
+function remove_from_deadpile(node) {
+  node.deadpile_element.remove();
+  deadpile = $.grep(deadpile, function(x) { return x != node; });
+  // @todo ühendatud nodede eemaldamine, kui neid oli
+}
 
 
 /**
@@ -173,6 +205,12 @@ function connect_nodes(node1, node2) {
     if ($.inArray(node1, node2.connections) == -1) {
       node2.connections.push(node1);
     }
+    if ($.inArray(node2, node1.all_connections) == -1) {
+      node1.all_connections.push(node2);
+    }
+    if ($.inArray(node1, node2.all_connections) == -1) {
+      node2.all_connections.push(node1);
+    }
     var edges1 = graph.getEdges(node1.vertice, node2.vertice);
     var edges2 = graph.getEdges(node2.vertice, node1.vertice);
     if (!edges1.length && !edges2.length) {
@@ -182,9 +220,9 @@ function connect_nodes(node1, node2) {
 }
 
 
-
 function clear_results(clear_deadpile) {
-  $("#results").empty();
+  $("#graph_area").empty();
+  $("#results_content").empty();
   for (var title in nodes) {
     nodes[title].element.remove();
   }
@@ -196,8 +234,6 @@ function clear_results(clear_deadpile) {
 }
 
 
-
-
 /**
  * Creates and returns the jQuery div element for the node.
  *
@@ -206,13 +242,13 @@ function clear_results(clear_deadpile) {
  * @return               the jQuery div object containing the node HTML
  */
 function create_element(node, is_searched) {
-  var element = $("<div />").css("display", "none").appendTo("#results");
+  var element = $("<div />").css("display", "none").appendTo("#graph_area");
   element.attr("wid", node.id); // Attach wikinity id to the element
   if (is_searched) {
     element.addClass("searched_node");
   }
-  $("<a />").attr({"class": "wiki", "title": "open wiki", "href": "http://en.wikipedia.org/wiki/"+node.data.title}).text("w").appendTo(element);
-  $("<a />").attr({"class": "close", "title": "close"}).text("x").click(function() { remove_node(node); return false; }).appendTo(element);
+  $("<a />").attr({"class": "wiki", "title": "open wiki", "href": WIKI_BASE_URL+"/wiki/"+node.data.title}).text("w").appendTo(element);
+  $("<a />").attr({"class": "close", "title": "close"}).text("x").click(function() { focused_node = null; remove_node(node); return false; }).appendTo(element);
   $("<a />").attr({"class": "toggle", "title": "toggle visibility"}).text("*").click(function() { node.usercollapsed = !node.collapsed; on_node_mousewheel(null, node.collapsed ? 1 : -100, node); return false; }).appendTo(element);
   var heading = $(node.data.snippet ? "<h1 />" : "<h2 />").html(node.data.title).appendTo(element);
   element.hover(function() { focused_node = node; if (node.collapsed && !node.usercollapsed) on_node_mousewheel(null, 1, node); }, function() { focused_node = null; if (autohide_contents && node.autocollapsed) on_node_mousewheel(null, -100, node); });
@@ -232,11 +268,11 @@ function create_element(node, is_searched) {
     content.appendTo(element);
     node.snippet_element = snippet;
     node.shorter_snippet_element = shorter_snippet;
-    heading_click_function = function() { log_activity("click_to_expand", {"title": node.data.title}); if (!node.links_queried) node.links_queried = true; get_see_also(node.data.title, neighborhood_size); };
+    heading_click_function = function() { if (!node.links_queried) node.links_queried = true; get_see_also(node.data.title, neighborhood_size); log_activity("click_to_expand", {"title": node.data.title}); };
   } else {
-    var heading_click_function = function() { log_activity("click_to_retrieve", {"title": node.data.title}); if (!node.links_queried) node.links_queried = true; get_page(node.data.title, neighborhood_size); }
+    var heading_click_function = function() { if (!node.links_queried) node.links_queried = true; get_page(node.data.title, neighborhood_size); log_activity("click_to_retrieve", {"title": node.data.title}); }
   }
-  element.appendTo("#results");
+  element.appendTo("#graph_area");
   element.draggable({
     containment: "#main",
     //cursor: "crosshair",
@@ -253,6 +289,73 @@ trying to add middle click drag, so far nothing..
 */
   heading.hover(function() { if (!node.links_queried) heading.css('cursor','pointer'); }, function() { heading.css('cursor','auto'); });
   return element;
+}
+
+
+
+/**
+ * Updates the graph element with the new data. Checks whether the new data is
+ * different from node's current data.
+ */
+function update_element(node, data) {
+  if (data.snippet && !node.data.snippet) {
+    var element = node.element;
+    element.children().not("a").remove(); // New info arrived, empty all except close/wiki links
+    var heading = $("<h1 />").html(data.title).appendTo(element);
+    // Wrap snippet in <span> as it can contain a flat list of HTML
+    var snippet = $($("<span />").html(data.snippet));
+    // Parse out tables, those tend to not have text content
+    snippet.find("table").empty().remove(); // Emptying first should be faster
+    snippet.find("div").remove();
+    snippet.find("strong.error").remove(); // Wiki error messages
+    snippet.find("span.IPA").remove(); // phonetic alphabet media content
+    snippet.find("img").remove();
+    process_links(snippet, node);
+    var shorter_snippet = $($.trim(snippet.html().substr(0, 1000)));
+    var content = $("<div />").attr("class", "content").css("display", autohide_contents ? "none": "block").append($("<div />").attr("class", "text").append(shorter_snippet));
+    content.appendTo(element);
+    node.snippet_element = snippet;
+    node.shorter_snippet_element = shorter_snippet;
+    heading_click_function = function() { if (!node.links_queried) node.links_queried = true; get_see_also(data.title, neighborhood_size); log_activity("click_to_expand", {"title": node.data.title}); };
+  } else {
+    var heading = element.find("h1:first");
+    heading_click_function = function() { if (!node.links_queried) node.links_queried = true; get_page(data.title, neighborhood_size); log_activity("click_to_retrieve", {"title": node.data.title}); }
+  }
+  heading.click(heading_click_function);
+  heading.hover(function() { if (!node.links_queried) heading.css('cursor','pointer'); }, function() { heading.css('cursor','auto'); });
+}
+
+
+
+/**
+ * Processes the links in the element, replacing relative hrefs with absolute
+ * ones and attaching click handlers to open links inside Wikinity.
+ */
+function process_links(element, node) {
+  element.find("a").each(function(index, a) {
+    var link = $(this);
+    link.link_clicked = false;
+    var href = link.attr("href");
+    if ("#" == href[0]) {
+      link.remove(); // On-page link, remove. @todo leave link contents
+    } else if ("/wiki/" == href.slice(0, 6)) {
+      var new_title = decodeURIComponent(href.slice(6)).replace(/_/g, " ");
+      if (!node.links) {
+        node.links = {};
+      }
+      node.links[new_title] = {};
+      link.attr("href", WIKI_BASE_URL + href);
+      // Have clicking the link make a local query
+      // Click handlers had problems: when swapping node content between snippet and shorter_snippet on resizing,
+      // handlers got lost. Don't know why.
+      //link.click(function() { if (!link.link_clicked) get_page(new_title, neighborhood_size, node.title); link.link_clicked = true; return false; });
+      // @todo fix this fuckery.
+      link.attr({"title": new_title, "onClick": "get_page('"+new_title.replace(/'/g, "\\'")+"', 0, '"+node.title.replace(/'/g, "\\'")+"'); log_activity('click', {'title': '"+new_title.replace(/'/g, "\\'")+"', 'referrer': '"+node.data.title.replace(/'/g, "\\'")+"'}); return false;"});
+    } else if ("/w/" == href.slice(0, 3)) {
+      // Probably an edit link
+      link.attr("href", WIKI_BASE_URL + href);
+    }
+  });
 }
 
 
@@ -285,33 +388,6 @@ function get_node(element) {
     if (nodes[title].id == wid)
       return nodes[title];
   }
-}
-
-
-function on_click_deadpile(node) {
-  node.deadpile_element.remove();
-  deadpile = $.grep(deadpile, function(x) { return x != node; });
-
-  node.element = create_element(node); // @todo pane juurde hoidma kusagil searchimist
-  node.vertice = graph.newNode(node);
-  nodes[node.title] = node;
-  for (var i in node.connections) {
-    if (!nodes[node.connections[i].title]) {
-      node.connections[i].element = create_element(node.connections[i]); // @todo pane juurde hoidma kusagil searchimist
-      node.connections[i].vertice = graph.newNode(node.connections[i]);
-      nodes[node.connections[i].title] = node.connections[i];
-    }
-    connect_nodes(node, node.connections[i]);
-  }
-
-  renderer.start();
-}
-
-
-function on_close_deadpile(node) {
-  node.deadpile_element.remove();
-  deadpile = $.grep(deadpile, function(x) { return x != node; });
-  // @todo ühendatud nodede eemaldamine, kui neid oli
 }
 
 
@@ -408,7 +484,7 @@ function on_node_drag(event, ui) {
   var node = get_node(element);
   var element_left = element.position().left;
   var element_top = element.position().top;
-  var x = element_left - canvasbox_left + 100;
+  var x = element_left - canvasbox_left + element.width() / 2;
   var y = element_top - canvasbox_top + 7;
 
   var p = fromScreen({x: x, y: y});
@@ -462,6 +538,7 @@ $(document).ready(function(){
       var term = $.trim($("#search_term").val());
       if (term) { 
         if (autoclear_results) clear_results();
+        $("#results").css("display", "none");
         search(term);
         log_activity("search", {"term": term}); 
       }
@@ -496,6 +573,15 @@ $(document).ready(function(){
   $("#closeabout").click(function() {
     $("#about").css({"display": "none"});
     $("#shadow").css({"display": "none"});
+  });
+
+  $("#results_close").click(function() {
+    $("#results").css({"display": "none"});
+  });
+
+  $("#setting_clickstream_enabled").click(function() {
+    clickstream_enabled = $("#setting_clickstream_enabled").is(":checked");
+    log_activity("setting", {"clickstream_enabled": clickstream_enabled}, true);
   });
 
   $("#setting_images_enabled").click(function() { 
@@ -542,32 +628,6 @@ $(document).ready(function(){
   canvas_dom = canvas.get(0);
   ctx = canvas_dom.getContext("2d");
 
-  $(window).load(function () { 
-    $('#search_term').focus(); 
-
-    // Get parameters from hash string, like #images_enabled=1&link_limit=1&neighborhood_size=10&term=SEARCHTERM
-    var hash_params = parse_hash();
-    for (var name in hash_params) {
-      if ("term" == name) {
-        $("#search_term").val(hash_params[name]);
-      } else if ("limit" == name) {
-        $("#setting_link_limit").val(hash_params[name]);
-      } else if ("depth" == name) {
-        $("#setting_neighborhood_size").val(hash_params[name]);
-      } else if ("images" == name) {
-        $("#setting_images_enabled").attr("checked", "0" != hash_params[name]);
-      } else if ("autohide" == name) {
-        $("#setting_autohide_contents").attr("checked", "0" != hash_params[name]);
-      } else if ("autoclear" == name) {
-        $("#setting_autoclear_results").attr("checked", "0" != hash_params[name]);
-      }
-    }
-    update_settings();
-    if (hash_params["term"]) {
-      $("#search_form").submit();
-    }
-  });
-
   graph = new Graph();
 
   var stiffness = 100.0; // 400.0;
@@ -578,15 +638,15 @@ $(document).ready(function(){
   // convert to/from screen coordinates
   var toScreen = function(p) {
     var size = layout.getBoundingBox().topright.subtract(layout.getBoundingBox().bottomleft);
-    var sx = p.subtract(layout.getBoundingBox().bottomleft).divide(size.x).x * $("#canvas").get(0).width;
-    var sy = p.subtract(layout.getBoundingBox().bottomleft).divide(size.y).y * $("#canvas").get(0).height;
+    var sx = p.subtract(layout.getBoundingBox().bottomleft).divide(size.x).x * (canvasbox_right - canvasbox_left);
+    var sy = p.subtract(layout.getBoundingBox().bottomleft).divide(size.y).y * (canvasbox_bottom - canvasbox_top);
     return new Vector(sx, sy);
   };
 
   fromScreen = function(s) {
     var size = layout.getBoundingBox().topright.subtract(layout.getBoundingBox().bottomleft);
-    var px = (s.x / $("#canvas").get(0).width) * size.x + layout.getBoundingBox().bottomleft.x;
-    var py = (s.y / $("#canvas").get(0).height) * size.y + layout.getBoundingBox().bottomleft.y;
+    var px = (s.x / (canvasbox_right - canvasbox_left)) * size.x + layout.getBoundingBox().bottomleft.x;
+    var py = (s.y / (canvasbox_bottom - canvasbox_top)) * size.y + layout.getBoundingBox().bottomleft.y;
     return new Vector(px, py);
   };
 
@@ -605,12 +665,12 @@ $(document).ready(function(){
       if (focused_node == edge.source.data) {
         var element_left = edge.source.data.element.position().left;
         var element_top = edge.source.data.element.position().top;
-        var x1 = element_left - canvasbox_left + 100;
+        var x1 = element_left - canvasbox_left + edge.source.data.element.width() / 2;
         var y1 = element_top - canvasbox_top + 7;
       } else if (focused_node == edge.target.data) {
         var element_left = edge.target.data.element.position().left;
         var element_top = edge.target.data.element.position().top;
-        var x2 = element_left - canvasbox_left + 100;
+        var x2 = element_left - canvasbox_left + edge.target.data.element.width() / 2;
         var y2 = element_top - canvasbox_top + 7;
       }
 
@@ -630,11 +690,10 @@ $(document).ready(function(){
         var y = toScreen(p).y;
 
         var element = vertice.data.element;
-        var heading = vertice.data.element.find("h1");
-        if (!heading) heading = vertice.data.element.find("h2");
+        var width = element.outerWidth();
         var height = element.outerHeight();
-        var new_x = canvasbox_left + x - 100;
-        var new_y = heading ? (canvasbox_top + y - 7) : canvasbox_top + y;
+        var new_x = canvasbox_left + x - width / 2;
+        var new_y = canvasbox_top + y - 7;
         if (new_y + height > canvasbox_bottom) {
           new_y = canvasbox_bottom - height + 7;
         }
@@ -645,4 +704,34 @@ $(document).ready(function(){
   );
 
   on_window_resize();
+
+// Removed doing this on window.load for now.
+//  $(window).load(function () { 
+    $('#search_term').focus(); 
+
+    // Get parameters from hash string, like #images_enabled=1&link_limit=1&neighborhood_size=10&term=SEARCHTERM
+    var hash_params = parse_hash();
+    for (var name in hash_params) {
+      if ("term" == name) {
+        $("#search_term").val(hash_params[name]);
+      } else if ("limit" == name) {
+        $("#setting_link_limit").val(hash_params[name]);
+      } else if ("depth" == name) {
+        $("#setting_neighborhood_size").val(hash_params[name]);
+      } else if ("images" == name) {
+        $("#setting_images_enabled").attr("checked", "0" != hash_params[name]);
+      } else if ("autohide" == name) {
+        $("#setting_autohide_contents").attr("checked", "0" != hash_params[name]);
+      } else if ("autoclear" == name) {
+        $("#setting_autoclear_results").attr("checked", "0" != hash_params[name]);
+      } else if ("clickstream" == name) {
+        $("#setting_clickstream_enabled").attr("checked", "0" != hash_params[name]);
+      }
+    }
+    update_settings();
+    if (hash_params["term"]) {
+      $("#search_form").submit();
+    }
+//  });
+
 })

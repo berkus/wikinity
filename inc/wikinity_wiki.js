@@ -1,5 +1,5 @@
 // Wikinity, a visual graph browser for Wikipedia.
-// Copyright (C) 2011, Erki Suurjaak, André Karpištšenko.
+// Copyright (C) 2011, Erki Suurjaak, Andre Karpistsenko.
 // Wikinity has been published under the GNU Affero General Public License v3.
 // See <http://www.gnu.org/licenses/agpl.html>.
 
@@ -12,9 +12,10 @@
 // @created   03.04.2011
 // @modified  10.04.2011
 
+const WIKI_BASE_URL = "http://en.wikipedia.org";
 // jQuery replaces ? with the created callback function name, this allows for
 // cross-site requests.
-const WIKI_API_URL = "http://en.wikipedia.org/w/api.php?callback=?";
+const WIKI_API_URL = WIKI_BASE_URL + "/w/api.php?callback=?";
 // All the other wikipedia namespaces besides the main one (0). Articles
 // in the namespaces have the namespace name as prefix (e.g. WP:Logo).
 // http://en.wikipedia.org/wiki/Wikipedia_namespaces
@@ -24,72 +25,6 @@ const OTHER_NAMESPACES = ["Wikipedia", "WP", "Project", "WT", "Project talk",
 const MAX_IMG_WIDTH = 60;
 const MAX_IMG_HEIGHT = 80;
 
-
-
-/**
- * Updates the graph element with the new data. Checks whether the new data is
- * different from node's current data.
- */
-function update_graph_element(node, data) {
-  if (data.snippet && !node.data.snippet) {
-    var element = node.element;
-    element.children().not("a").remove(); // New info arrived, empty all except close/wiki links
-    var heading = $("<h1 />").html(data.title).appendTo(element);
-    // Wrap snippet in <span> as it can contain a flat list of HTML
-    var snippet = $($("<span />").html(data.snippet));
-    // Parse out tables, those tend to not have text content
-    snippet.find("table").empty().remove(); // Emptying first should be faster
-    snippet.find("div").remove();
-    snippet.find("strong.error").remove(); // Wiki error messages
-    snippet.find("span.IPA").remove(); // phonetic alphabet media content
-    snippet.find("img").remove();
-    process_links(snippet, node);
-    var shorter_snippet = $($.trim(snippet.html().substr(0, 1000)));
-    var content = $("<div />").attr("class", "content").css("display", autohide_contents ? "none": "block").append($("<div />").attr("class", "text").append(shorter_snippet));
-    content.appendTo(element);
-    node.snippet_element = snippet;
-    node.shorter_snippet_element = shorter_snippet;
-    heading_click_function = function() { log_activity("click_to_expand", {"title": node.data.title}); if (!node.links_queried) node.links_queried = true; get_see_also(data.title, neighborhood_size); };
-  } else {
-    var heading = element.find("h1:first");
-    heading_click_function = function() { log_activity("click_to_retrieve", {"title": node.data.title}); if (!node.links_queried) node.links_queried = true; get_page(data.title, neighborhood_size); }
-  }
-  heading.click(heading_click_function);
-  heading.hover(function() { if (!node.links_queried) heading.css('cursor','pointer'); }, function() { heading.css('cursor','auto'); });
-}
-
-
-
-/**
- * Processes the links in the element, replacing relative hrefs with absolute
- * ones and attaching click handlers to open links inside Wikinity.
- */
-function process_links(element, node) {
-  element.find("a").each(function(index, a) {
-    var link = $(this);
-    link.link_clicked = false;
-    var href = link.attr("href");
-    if ("#" == href[0]) {
-      link.remove(); // On-page link, remove. @todo leave link contents
-    } else if ("/wiki/" == href.slice(0, 6)) {
-      var new_title = decodeURIComponent(href.slice(6)).replace(/_/g, " ");
-      if (!node.links) {
-        node.links = {};
-      }
-      node.links[new_title] = {};
-      link.attr("href", "http://en.wikipedia.org" + href);
-      // Have clicking the link make a local query
-      // Click handlers had problems: when swapping node content between snippet and shorter_snippet on resizing,
-      // handlers got lost. Don't know why.
-      //link.click(function() { if (!link.link_clicked) get_page(new_title, neighborhood_size, node.title); link.link_clicked = true; return false; });
-      // @todo fix this fuckery.
-      link.attr({"title": new_title, "onclick": "javascript:log_activity('click', {'title': '"+new_title.replace(/'/g, "\\'")+"', 'referrer': '"+node.data.title.replace(/'/g, "\\'")+"'}); get_page('"+new_title.replace(/'/g, "\\'")+"', 0, '"+node.title.replace(/'/g, "\\'")+"'); return false;"});
-    } else if ("/w/" == href.slice(0, 3)) {
-      // Probably an edit link
-      link.attr("href", "http://en.wikipedia.org" + href);
-    }
-  });
-}
 
 
 /**
@@ -105,7 +40,7 @@ function search(term) {
       "action": "query",
       "redirects": "1",
       "format": "json",
-      "titles": term,
+      "titles": term
     },
     function(data) {
       var title = null;
@@ -125,21 +60,25 @@ function search(term) {
             "action": "opensearch",
             "format": "json",
             "limit": 20,
-            "search": term,
+            "search": term
           },
           function(data) {
             if (data && data.length > 1 && data[1].length > 0) {
               if (data[1].length == 1 || data[1][0].toLowerCase() == term.toLowerCase()) {
                 get_page(data[1][0], neighborhood_size);
               } else {
-                $("<p />").text("Multiple matches for '" + term + "':").appendTo('#results');
-                var list = $("<ul />").appendTo('#results');
+                $("#results").css("display", "block");
+                $("#results_content").empty();
+                $("<p />").text("Multiple matches for '" + term + "':").appendTo('#results_content');
+                var list = $("<ul />").appendTo('#results_content');
                 for (var i in data[1]) {
-                  list.append($("<li />").append($("<a />").attr("href", "http://en.wikipedia.org/wiki/" + data[1][i].replace(/ /g, "_")).text(data[1][i]).attr("title", data[1][i]).click(function() { get_page(($(this).attr("title")), neighborhood_size); $("#results").empty(); return false; })));
+                  list.append($("<li />").append($("<a />").attr("href", WIKI_BASE_URL + "/wiki/" + data[1][i].replace(/ /g, "_")).text(data[1][i]).attr("title", data[1][i]).click(function() { get_page(($(this).attr("title")), neighborhood_size); $("#results").css("display", "none"); return false; })));
                 }
               }
             } else {
-              $("<p />").text("No match for '" + term + "'.").appendTo('#results');
+              $("#results").css("display", "block");
+              $("#results_content").empty();
+              $("<p />").html("<br />No match for '" + term + "'.").appendTo('#results_content');
             }
           }
         );
@@ -165,7 +104,7 @@ function get_page(title, depth_to_follow, connected_page) {
         "redirects": "1",
         "section": "0",
         "format": "json",
-        "page": title,
+        "page": title
       },
       function(data) {
           if (data.parse && data.parse.displaytitle) {
@@ -233,7 +172,7 @@ function get_image(image_title, article_title) {
       "iiurlheight": MAX_IMG_HEIGHT,
       "redirects": "1",
       "format": "json",
-      "titles": "File:" + image_title,
+      "titles": "File:" + image_title
     },
     function(data) {
       if (nodes[article_title]) { // If image was retrieved later than article closed
@@ -269,7 +208,7 @@ function get_see_also(title, depth_to_follow) {
       "disablepp": "1",
       "redirects": "1",
       "format": "json",
-      "page": title,
+      "page": title
     },
     function(data) {
       var section_index = null;
@@ -290,7 +229,7 @@ function get_see_also(title, depth_to_follow) {
             "redirects": "1",
             "format": "json",
             "page": title,
-            "section": section_index,
+            "section": section_index
           },
           function(data) {
             var count = 0;
@@ -345,7 +284,7 @@ function get_categories(title, depth_to_follow) {
       "cllimit": limit,
       "redirects": "1",
       "format": "json",
-      "titles": title,
+      "titles": title
     },
     function(data) {
       $.each(data.query.pages, function(page_id, page_data) { 
