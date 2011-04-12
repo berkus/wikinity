@@ -579,6 +579,17 @@ $(document).ready(function(){
     $("#results").css({"display": "none"});
   });
 
+  $("#search_term").focus(function() {
+    if ("Search.." == $("#search_term").val()) {
+      $("#search_term").val("");
+    }
+  });
+  $("#search_term").blur(function() {
+    if (!$("#search_term").val()) {
+      $("#search_term").val("Search..");
+    }
+  });
+
   $("#setting_clickstream_enabled").click(function() {
     clickstream_enabled = $("#setting_clickstream_enabled").is(":checked");
     log_activity("setting", {"clickstream_enabled": clickstream_enabled}, true);
@@ -707,7 +718,7 @@ $(document).ready(function(){
 
 // Removed doing this on window.load for now.
 //  $(window).load(function () { 
-    $('#search_term').focus(); 
+    $('#search_term').focus().val("Search..").select(); 
 
     // Get parameters from hash string, like #images_enabled=1&link_limit=1&neighborhood_size=10&term=SEARCHTERM
     var hash_params = parse_hash();
